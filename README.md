@@ -10,6 +10,9 @@ yourself in seconds.
 Built with Jetpack Compose, a single-Activity architecture, and a light, high-contrast UI with a
 Bengaluru identity.
 
+> Working on this codebase (human or AI)? Read [AGENTS.md](AGENTS.md) first — it documents the build
+> prerequisites, the secrets policy and several non-obvious constraints.
+
 ---
 
 ## Features
