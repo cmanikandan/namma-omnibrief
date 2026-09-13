@@ -1,0 +1,6 @@
+{
+  "name": "Namma Omnibrief",
+  "description": "Bengaluru's executive AI assistant using Gemini 3.8 Flash for converting articles into executive X posts and generating multi-photo audio conference reports.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
