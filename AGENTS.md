@@ -295,8 +295,15 @@ export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 
 ## 11. Known gaps / candidate next steps
 
-- **No on-device UI verification has been done.** The batch queue, the paste buttons and the scroll
-  clearance are code-correct and compile, but nobody has run them on a device or emulator.
+- **Partial on-device verification (2026-09-14).** Installed and launched on a physical **Pixel 10,
+  Android 17 (API 37)**, connected over wireless debugging. `MainActivity` reaches the resumed state
+  with no crash and the Article screen renders correctly: light theme, Bengaluru logo, "ನಮ್ಮ BLR"
+  badge, model line, and the four-tab bottom nav ("Archive (10)" confirms Room is populated).
+  That run also caught a real layout bug — the source chip wrapped mid-word and collided with the
+  heading, because the header `Row` used `SpaceBetween` with no `weight` on either child. Fixed.
+  **Still unverified:** the Conference, History and Settings screens; scroll clearance on all four;
+  the multi-image batch queue; the paste buttons. Capturing those needs the handset unlocked —
+  `adb` cannot bypass the lock screen, and a screenshot of a locked phone is simply black.
 - X posting has never been executed end to end (see §6).
 - Conference photo picker allows `maxItems = 30` while the article picker caps at 10 — intentional,
   but worth confirming if the conference flow is ever revisited.

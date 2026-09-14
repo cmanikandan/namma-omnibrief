@@ -39,6 +39,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun OmniBriefApp(viewModel: MainViewModel = viewModel()) {
   val currentDestination by viewModel.currentDestination.collectAsStateWithLifecycle()
+  val storedCount = viewModel.storedItems.collectAsStateWithLifecycle().value.size
 
   Scaffold(
     modifier = Modifier.fillMaxSize(),
@@ -51,7 +52,8 @@ fun OmniBriefApp(viewModel: MainViewModel = viewModel()) {
     bottomBar = {
       OmniNavBar(
         selectedDestination = currentDestination,
-        onDestinationSelected = { viewModel.navigateTo(it) }
+        onDestinationSelected = { viewModel.navigateTo(it) },
+        historyCount = storedCount
       )
     }
   ) { innerPadding ->

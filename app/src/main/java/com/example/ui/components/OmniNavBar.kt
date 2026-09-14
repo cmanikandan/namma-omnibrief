@@ -35,7 +35,7 @@ import com.example.ui.theme.TextSecondary
 enum class AppDestination(val label: String, val testTag: String) {
     ARTICLE_TO_X("X Drafter", "nav_tab_article_to_x"),
     CONFERENCE("Conference", "nav_tab_conference"),
-    HISTORY("Archive (10)", "nav_tab_history"),
+    HISTORY("Archive", "nav_tab_history"),
     SETTINGS("Settings", "nav_tab_settings")
 }
 
@@ -43,7 +43,9 @@ enum class AppDestination(val label: String, val testTag: String) {
 fun OmniNavBar(
     selectedDestination: AppDestination,
     onDestinationSelected: (AppDestination) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** Number of briefs currently in Room. Shown on the Archive tab; hidden when zero. */
+    historyCount: Int = 0
 ) {
     NavigationBar(
         modifier = modifier
@@ -130,7 +132,11 @@ fun OmniNavBar(
             },
             label = {
                 Text(
-                    text = AppDestination.HISTORY.label,
+                    text = if (historyCount > 0) {
+                        "${AppDestination.HISTORY.label} ($historyCount)"
+                    } else {
+                        AppDestination.HISTORY.label
+                    },
                     fontSize = 11.sp,
                     fontWeight = if (selectedDestination == AppDestination.HISTORY) FontWeight.Bold else FontWeight.Normal
                 )

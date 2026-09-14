@@ -66,6 +66,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -175,7 +176,9 @@ fun ArticleToXScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
+            // Let the heading yield width to the chip; without a weight the 18sp title claims the
+            // whole row and squeezes the chip until its label wraps mid-word.
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "ARTICLE TO X DRAFTER",
                     fontSize = 12.sp,
@@ -190,6 +193,8 @@ fun ArticleToXScreen(
                     color = TextPrimary
                 )
             }
+
+            Spacer(modifier = Modifier.width(12.dp))
 
             // Source Selector Chip
             Box(
@@ -213,7 +218,9 @@ fun ArticleToXScreen(
                         text = if (currentSource.isBlank()) "Auto-Detect" else currentSource,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = TextPrimary
+                        color = TextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }

@@ -123,24 +123,88 @@ A fresh SDK install has no virtual devices, so you create one:
 
 #### Option B — Use your own Android phone
 
+Do this once, whichever connection method you pick:
+
 1. On the phone: **Settings → About phone**, then tap **Build number** seven times. You will see
    "You are now a developer".
-2. Go to **Settings → System → Developer options** and turn on **USB debugging**.
-3. Connect the phone to your computer with a USB cable.
-4. On the phone, a dialog asks **"Allow USB debugging?"** — tick *Always allow* and accept. This
-   dialog is easy to miss; if the phone never shows up in Studio, unplug and replug to trigger it.
+2. Go to **Settings → System → Developer options**.
 
-To check the computer can see the phone, run:
+Now choose wired or wireless. Wired is simpler to get working the first time; wireless is nicer
+day to day, especially for this app, because you can pick the phone up and photograph a newspaper
+without a cable pulling at it.
+
+##### Wired (USB)
+
+1. In **Developer options**, turn on **USB debugging**.
+2. Connect the phone to the Mac with a USB cable.
+3. On the phone, a dialog asks **"Allow USB debugging?"** — tick *Always allow from this computer*
+   and accept.
+
+> [!IMPORTANT]
+> That dialog is the single most common reason a phone never appears. It can be easy to miss, and it
+> does not reappear on its own. If the phone does not show up, unplug and replug to trigger it again.
+> Also make sure the cable is a **data** cable — many charge-only cables look identical and will
+> charge the phone while never enumerating it to the Mac.
+
+##### Wireless (Wi-Fi)
+
+The phone and the Mac must be on the **same network**. Note that many corporate and guest Wi-Fi
+networks block devices from talking to each other, which stops this working; a home network or a
+phone hotspot is a reliable fallback.
+
+1. In **Developer options**, turn on **Wireless debugging**.
+2. In Android Studio: **Device Manager → ＋ → Pair using Wi-Fi**. A QR code appears.
+3. On the phone: **Wireless debugging → Pair device with QR code**, and scan it.
+
+Or pair entirely from the terminal, which is useful when the QR flow is being uncooperative. Tap
+**Pair device with pairing code** on the phone to get a code and a `host:port`:
 
 ```bash
-~/Library/Android/sdk/platform-tools/adb devices
+adb pair 192.168.1.50:41234     # the port shown on the PAIRING screen
+adb connect 192.168.1.50:5555   # the port shown on the main Wireless debugging screen
 ```
 
-You should see your device listed. `unauthorized` means you have not accepted the dialog on the
-phone yet.
+> [!WARNING]
+> Pairing and connecting use **two different ports**, and mixing them up is the usual failure. The
+> pairing port is shown only on the "Pair device with pairing code" dialog and is single-use. The
+> connect port is on the main Wireless debugging screen and changes whenever Wi-Fi reconnects.
 
-Prefer no cable? Use **Device Manager → ＋ → Pair using Wi-Fi** and scan the QR code with
-**Developer options → Wireless debugging** on the phone.
+Pairing is remembered, so after the first time you only need `adb connect`. If the phone drops off
+after a reboot or a network change, reconnect with the current port — you do not have to pair again.
+
+##### Check the Mac can see the phone
+
+```bash
+adb devices -l
+```
+
+A wirelessly connected device looks like this — the `_adb-tls-connect._tcp` suffix is how you know
+it is on Wi-Fi rather than USB:
+
+```
+List of devices attached
+adb-57301FDCR003L3-wccOcB._adb-tls-connect._tcp device product:frankel model:Pixel_10
+```
+
+| What you see | What it means |
+|---|---|
+| `device` | Working. You are done |
+| `unauthorized` | You have not accepted the "Allow USB debugging?" dialog on the phone |
+| `offline` | Connection went stale. `adb disconnect` then `adb connect <ip>:<port>` |
+| Nothing at all | Wrong cable, wrong network, or wireless debugging got switched off |
+
+If `adb` is not on your `PATH`, either use the full path
+`~/Library/Android/sdk/platform-tools/adb` or add it once:
+
+```bash
+echo 'export PATH="$PATH:$HOME/Library/Android/sdk/platform-tools"' >> ~/.zshrc && source ~/.zshrc
+```
+
+When things get truly stuck, restarting the bridge clears most of it:
+
+```bash
+adb kill-server && adb start-server && adb devices -l
+```
 
 ### Step 4 — Run it
 
@@ -163,7 +227,63 @@ automatically.
 If the app misbehaves, Logcat is where the answer is. The networking code logs under the tags
 `GeminiApi` and `XApiService`.
 
-### Step 5 — Add your keys
+### Step 5 — Mirror the phone on your Mac (optional, but worth it)
+
+Mirroring puts the phone's screen in a window on the Mac, so you can drive the app with your mouse
+and keyboard instead of constantly reaching for the handset. Typing a long API key into the Settings
+screen is dramatically less painful this way.
+
+#### Android Studio's built-in mirroring (nothing to install)
+
+This is the one to start with. It ships with Studio and works over both USB and Wi-Fi.
+
+1. Connect the phone (either method above).
+2. **View → Tool Windows → Running Devices**.
+3. Pick your device from the tab strip. The screen appears in the panel.
+
+You can click, scroll, type with the Mac keyboard, and paste into the phone. The toolbar has buttons
+for rotate, volume, Back/Home/Overview, and a screenshot. If the panel is cramped, drag it out into
+its own window with **⚙ → View Mode → Float**.
+
+> [!NOTE]
+> Mirroring is on by default. If the panel says nothing is available, check
+> **Settings → Tools → Device Mirroring** and confirm *Activate mirroring when a device is connected*
+> is ticked. Over Wi-Fi it is slightly laggier than USB, which is normal.
+
+> [!IMPORTANT]
+> Mirroring cannot unlock the phone for you. If the screen is locked, the mirror shows the lock
+> screen and any screenshot comes out black. Unlock the handset first.
+
+#### scrcpy (optional, smoother)
+
+[scrcpy](https://github.com/Genymobile/scrcpy) is a free, open-source mirror that is noticeably
+faster and more responsive than the built-in panel, and it runs without Studio open at all. It needs
+Homebrew, which is not installed on this machine:
+
+```bash
+# one-time: install Homebrew, then scrcpy
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+brew install scrcpy
+
+scrcpy                    # mirror
+scrcpy --turn-screen-off  # mirror while the phone's own screen stays dark, saving battery
+scrcpy --record demo.mp4  # mirror and record to a file
+```
+
+It is strictly a convenience. The built-in panel is enough to test this app.
+
+#### Capturing without mirroring
+
+For a quick screenshot or a screen recording — handy for bug reports — you do not need a mirror at
+all:
+
+```bash
+adb exec-out screencap -p > screen.png      # screenshot straight to the Mac
+adb shell screenrecord /sdcard/demo.mp4     # record; Ctrl+C to stop
+adb pull /sdcard/demo.mp4                   # then copy it over
+```
+
+### Step 6 — Add your keys
 
 The app builds and launches with no keys at all, but it cannot call Gemini or X until you add them.
 Open **Settings** in the running app and paste them in — see [Adding your keys](#adding-your-keys)
@@ -435,14 +555,63 @@ committed by accident.
 
 ### Option 3 — Google Play
 
-Only worth it if you want to share the app beyond yourself. In outline: create a
-[Play Console](https://play.google.com/console) account (one-off 25 USD), upload the `.aab` from
-option 2, and complete the store listing, content rating and data-safety declarations. For a
-private personal app, use **Internal testing**, which distributes to a list of up to 100 email
-addresses without a public listing or a full review.
+Only worth it if you want to share the app beyond yourself. For a personal app, **Internal testing**
+is almost certainly where you want to stop: it distributes to up to 100 email addresses, needs no
+public listing, and skips the hardest requirement below.
 
-Before publishing anything publicly you would need to change `applicationId` from the generated
-`com.aistudio.omnibrief.kypzmr` to something you own, and it must be globally unique and permanent.
+#### Fix these two first — they are specific to this app
+
+> [!CAUTION]
+> **`applicationId` is permanent.** It is currently `com.aistudio.omnibrief.kypzmr`, which the AI
+> Studio export generated. Once you upload a build under an ID you can never change it, and you
+> cannot reuse it for a different app. Worse, `com.aistudio.*` reads as a claim of affiliation with
+> Google's AI Studio, which is the kind of thing that draws an impersonation rejection. Change it to
+> a domain you control — `com.cmanikandan.omnibrief` or similar — **before the first upload**. Edit
+> `applicationId` in [app/build.gradle.kts](app/build.gradle.kts); the internal `namespace`
+> (`com.example`) is a separate thing and does not need to change.
+
+> [!IMPORTANT]
+> **A reviewer cannot use this app.** It does nothing until you paste in a Gemini key and X
+> credentials, so to a tester it looks broken. Fill in **App content → App access** in Play Console,
+> explain that the user supplies their own keys, and say where (Settings). Apps that appear
+> non-functional to a reviewer get rejected, and "they didn't add a key" is not something they will
+> guess.
+
+#### What Play requires
+
+| Requirement | Status here |
+|---|---|
+| Developer account, one-off **25 USD** | Plus identity verification |
+| **App bundle** (`.aab`), not an APK | `./gradlew :app:bundleRelease` |
+| **Signed** release build | Not yet — currently builds **unsigned** unless `KEYSTORE_PATH` is set. See option 2 |
+| Unique, permanent `applicationId` | **Must change** — see above |
+| `versionCode` increments every upload | Currently `1`; bump for each new upload |
+| **Target API level** within one year of the latest Android release | Targets **36**. The Pixel used for testing already runs Android 17 (API 37), so this deadline will move — check the [current requirement](https://developer.android.com/google/play/requirements/target-sdk) before you submit |
+| **Privacy policy** at a public URL | **Must write one.** Not optional here: the app uses the camera and microphone and sends content to Google and X |
+| **Data safety** form | Must declare photos, audio and that data goes to third parties |
+| **Content rating** questionnaire | Straightforward for this app |
+| **App access** instructions | Required — see the callout above |
+| Store listing assets | 512×512 icon, 1024×500 feature graphic, ≥2 phone screenshots, 80-char short description, 4000-char full description |
+
+#### The catch for personal accounts
+
+If your developer account is **personal** (not a company) and was created after **13 November 2023**,
+Play will not let you ship to production until you have run a **closed test with at least 12 testers
+opted in continuously for 14 days**, and then applied for production access. Testers who drop out
+reset the clock, and you have to summarise their feedback in the application.
+
+**Internal testing is exempt from all of that** and is available immediately. For an app you built
+for yourself, that is the sensible destination — you get Play delivery and automatic updates without
+recruiting a dozen people.
+
+#### Rough order of work
+
+1. Change `applicationId`, bump `versionCode`.
+2. Create an upload keystore and build a signed `.aab` (option 2 above).
+3. Register at [Play Console](https://play.google.com/console), verify identity, pay the 25 USD.
+4. Create the app, upload the bundle to **Internal testing**, add your own email as a tester.
+5. Complete Data safety, Content rating, App access and the privacy policy URL.
+6. Only if you want it public: run the 12-tester closed test, then apply for production.
 
 ---
 
@@ -457,6 +626,12 @@ Problems this project has actually hit:
 | `Keystore file ... debug.keystore not found` | Stale build config. Already fixed here — signing is applied only when a keystore exists. Re-sync Gradle |
 | Build seems to hang with no output | Piping Gradle into `tail` buffers everything. Use `tee`, or no pipe |
 | Device not listed in the Run dropdown | USB debugging off, or the "Allow USB debugging?" prompt was not accepted. Check `adb devices` |
+| Phone was there, now shows `offline` | Wireless connection went stale. `adb disconnect && adb connect <ip>:<port>` with the **current** port from Wireless debugging |
+| `adb pair` fails or says "connection refused" | Using the connect port instead of the pairing port. The pairing port only appears on the "Pair device with pairing code" dialog and is single-use |
+| Phone vanishes from Wi-Fi after a reboot | Expected. The connect port changes; reconnect with the new one. You do not need to pair again |
+| Wireless pairing never works at all | Some corporate and guest networks block device-to-device traffic. Try a home network or a phone hotspot |
+| Screenshot or mirror is all black | The phone is locked or the display is asleep. Unlock the handset — mirroring cannot do it for you |
+| `INSTALL_FAILED_UPDATE_INCOMPATIBLE` | A build with a different signature is installed. `adb uninstall com.aistudio.omnibrief.kypzmr` then install again |
 | Gradle sync fails right after opening | Usually a transient download failure. **File → Sync Project with Gradle Files** and retry |
 | `Configuration cache ... cannot be reused` | Informational, not an error. Editing build files invalidates the cache and the next build is slower |
 | "unable to strip ... libandroidx.graphics.path.so" | Harmless warning, ignore |
