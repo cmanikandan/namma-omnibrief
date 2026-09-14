@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
@@ -91,6 +92,21 @@ import com.example.ui.theme.VioletAccent
 import com.example.ui.viewmodel.DraftPostStatus
 import com.example.ui.viewmodel.MainViewModel
 import java.io.File
+
+/**
+ * Widest the source chip in the section header may grow.
+ *
+ * Publications are short ("WSJ", "The Hindu", "Economic Times") and fit well inside this, so the
+ * cap is invisible in normal use. It exists for the outliers — the built-in Bengaluru sample sets
+ * a 37-character source — where an uncapped chip would take two thirds of the row and leave the
+ * heading rendering one word per line.
+ *
+ * Deliberately in `dp`, not scaled with the font setting: the point is to bound the *layout*, and
+ * the chip's own label is already `maxLines = 1` with an ellipsis, so larger text truncates sooner
+ * rather than pushing the heading out again.
+ */
+private val SOURCE_CHIP_MAX_WIDTH = 150.dp
+
 
 @Composable
 fun ArticleToXScreen(
@@ -223,8 +239,10 @@ fun ArticleToXScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Let the heading yield width to the chip; without a weight the 18sp title claims the
-            // whole row and squeezes the chip until its label wraps mid-word.
+            // Weighted so it absorbs whatever the capped source chip does not use. Both halves of
+            // this have bitten: without the weight the 18sp title claimed the whole row and the
+            // chip wrapped mid-word; with the weight but an uncapped chip, a long publication name
+            // squeezed the title instead. See the chip's cap below.
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "ARTICLE TO X DRAFTER",
@@ -246,6 +264,15 @@ fun ArticleToXScreen(
             // Source Selector Chip
             Box(
                 modifier = Modifier
+                    // Capped rather than weighted. Row measures unweighted children first and
+                    // hands the remainder to the weighted Column, so a short source such as "FT"
+                    // leaves the heading nearly the whole row — which a `weight(1f, fill = false)`
+                    // would not, because unused weight space is not redistributed.
+                    //
+                    // The cap is what stops the mirror-image bug: uncapped, the 37-character
+                    // "Deccan Herald / Bengaluru Tech Summit" sample measured 692 px and left the
+                    // title 167 px, breaking it one word per line. Over-long sources now ellipsize.
+                    .widthIn(max = SOURCE_CHIP_MAX_WIDTH)
                     .clip(RoundedCornerShape(8.dp))
                     .background(ObsidianCard)
                     .border(1.dp, ObsidianBorder, RoundedCornerShape(8.dp))

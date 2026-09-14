@@ -701,7 +701,9 @@ fun SettingsScreen(
                         color = CyanAccent
                     )
                     Text(
-                        text = "Full write permissions (tweet.write scope) to post tweets directly to your account.",
+                        text = "Posts directly to your account. Authorise with tweet.read, " +
+                            "tweet.write, users.read, offline.access and media.write — the last " +
+                            "one is separate and is required to attach a photo.",
                         fontSize = 11.sp,
                         color = TextSecondary
                     )
