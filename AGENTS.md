@@ -230,6 +230,22 @@ Two rules now hold:
 2. **Detection fills a blank; it never overrules a human.** `sourceIsUserOverride` is set by
    `setArticleSource` and cleared by `clearArticleWorkspace`. Without it, picking a source and then
    re-analysing put the auto-detected masthead straight back.
+3. **The archived History row is retargeted too.** Fixing only the in-memory drafts left Room still
+   holding the wrong masthead, so the Archive card and anything reopened from it disagreed with the
+   editor. `MainViewModel` remembers the row it wrote in `archivedArticleBriefId` — populated by the
+   new `onSaved` callback on `saveDraftToRoom`, because `saveWithRollover` returns the id and nothing
+   was capturing it — and `retargetArchivedBrief(newSource)` rewrites both `sourceOrSpeaker` and the
+   `content` prose. It reads the **old** name from `existing.sourceOrSpeaker` rather than trusting
+   the caller, which is the only value guaranteed to match what was actually persisted. Failures are
+   logged and swallowed: a History row that did not update must never take down the editor.
+   Like the drafts, this is **skipped entirely once any draft in the batch is `POSTED`** — the live
+   tweet says something else and quietly rewriting the local record would only conceal that.
+   `clearArticleWorkspace` resets the id so a new article cannot retarget the previous one's row.
+
+**Verified on device 2026-09-14** (Pixel 10): a Sample FT draft archived as "Financial Times", the
+source was changed to Economic Times in the picker, and the Archive row updated **in place** — same
+timestamp, still `1/10`, no duplicate. Reopening it in the editor showed zero occurrences of
+"Financial Times" and two of "Economic Times" (the mid-sentence attribution and the `Source:` line).
 
 ### Two rules that exist because live testing caught a real failure
 
@@ -643,6 +659,22 @@ only when there is something to discard and gated behind a confirmation dialog
   composable, and Settings has a bulk **"Import All Keys From Clipboard"** card backed by
   `parseKeyBlob()` (tolerates `=` and `:`, `export ` prefixes, quotes, trailing commas, `#`/`//`
   comments; first occurrence of a key wins).
+- **In a `Row`, an unweighted child wins.** This is the rule behind a real bug in
+  `XPostPreviewCard`'s header. The header was `Arrangement.SpaceBetween` over two children with
+  **no `weight` on either**, so a long `batchLabel` ("Sample: Financial Times • 1 of 1") took the
+  full width and squeezed the source pill and status badge to nothing. They did not truncate — they
+  wrapped **one character per line**, measured at `2 × 994 px` and `12 × 553 px`, inflating the
+  header to roughly a full screen and pushing the post body off-screen. It reads as "the draft is
+  empty", which is how it went unnoticed. Compose measures unweighted children first at their
+  intrinsic size and only then splits the remainder among weighted ones, so the fix is to weight the
+  thing that may shrink: the identity block and its label get `weight(1f, fill = false)` plus
+  `maxLines = 1` and `TextOverflow.Ellipsis`, and the source column stays **unweighted** behind a
+  `widthIn(max = SOURCE_COLUMN_MAX_WIDTH)` cap so it gets its intrinsic width first. `fill = false`
+  matters: without it a short label stretches and shoves the pill to the far edge.
+  The pill also renders the **bare source name**, not `"Source: $source"` — the eight-character
+  prefix was eating the budget that the label needed, and the pencil icon already says what it is.
+  If you add anything to this header, re-measure with `adb shell uiautomator dump`; the bug is
+  invisible in a code review and easy to reintroduce.
 - Screens use `testTag(...)` extensively — preserve existing tags, they back the tests.
 
 ---
@@ -673,6 +705,40 @@ export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
   intentional top-bar change: `./gradlew recordRoborazziDebug`.
 - Robolectric emits `WARNING: A restricted method in java.lang.System has been called` on modern
   JDKs. Benign.
+
+### Instrumented tests — and the Gradle task that must never be used
+
+`ImageEncoderInstrumentedTest` (6 tests) is the only real proof of the EXIF rotation fix. It has to
+be instrumented: `ExifInterface` writing and `BitmapFactory` decoding are both being exercised for
+real, and Robolectric's shadows would make the test assert against a simulation of the very thing
+that was broken. Each test paints a red marker in one corner of a 400×200 white JPEG, stamps an
+orientation tag, runs it through `ImageEncoder.readUriAsJpegBytes`, and asserts **which corner the
+marker ends up in** — so a failure distinguishes "rotated the wrong way" from "did not rotate at
+all". It is non-vacuous by construction: the same source stays 400×200 under `NORMAL` and becomes
+200×400 under `ROTATE_90`.
+
+> [!CAUTION]
+> **Never run `./gradlew :app:connectedDebugAndroidTest` on this device.** It uninstalls the app
+> before reinstalling, its install then fails with
+> `INSTALL_FAILED_VERIFICATION_FAILURE: Verification timed out` (the Play Protect adb verifier), and
+> it leaves the app **uninstalled** — which wipes `/data/data` and every saved credential with it.
+> **Gradle printed `BUILD SUCCESSFUL` both times it did this.** It cost the X OAuth tokens once
+> already; they have no `BuildConfig` fallback by design, so they can only be recovered by
+> re-running the authorize flow. `settings put global verifier_verify_adb_installs 0` does **not**
+> take on Android 17, so there is no reliable mitigation.
+
+Use the adb-only path instead, which has been reliable every time:
+
+```bash
+./gradlew :app:assembleDebug :app:assembleDebugAndroidTest --console=plain
+adb install -r -t app/build/outputs/apk/debug/app-debug.apk
+adb install -r -t app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+adb shell am instrument -w -r -e class com.example.ImageEncoderInstrumentedTest \
+  com.aistudio.omnibrief.kypzmr.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+`adb install -r` upgrades in place and preserves app data. `-t` allows the test-only APK.
+
 
 ### Writing a Compose layout test that actually measures something
 
@@ -767,13 +833,26 @@ cheap proof the rewrite changed metadata and nothing else.
     `adb shell am start -n com.aistudio.omnibrief.kypzmr/com.example.MainActivity`.
   - Nav tap targets shift when the tab count changes. Get real bounds with
     `adb shell uiautomator dump` rather than guessing coordinates.
-- **Not yet verified on device (2026-09-14):** the source-override rewrite and the EXIF rotation fix.
-  Unit tested (57 tests, 0 failures) and installed, but the phone was locked. The rotation fix in
-  particular **cannot** be verified from the in-app preview — it needs a real post, or an inspection
-  of the uploaded bytes.
-- X posting **has** now been executed end to end, once, with consent (see §6) — text *and* image.
-  What remains unverified there: the **standard (non-Blue) character-limit** guard in
-  `approveAndPostToX()`, since the account is X Blue and the premium limit applied.
+- **Verified on device (2026-09-14, pass 3).** Both user-reported bugs are now confirmed fixed on
+  the physical Pixel 10, not merely unit tested.
+  - *Source override.* Driven through the real UI: auto-detected "Financial Times" → picker →
+    "Economic Times". The chip, the draft body, the `Source:` line and the archived History row all
+    followed. The character count fell 371 → 369, which is exactly two occurrences rewritten at
+    15 → 14 characters each — a cheap, precise signal that the rewrite hit the prose and not just
+    the label. Worth reusing.
+  - *EXIF rotation.* `ImageEncoderInstrumentedTest`, 6/6 passing on the handset. This one **cannot**
+    be confirmed from the in-app preview: Coil and the gallery both honour the orientation tag, so
+    the preview looks correct whether or not the bytes that get uploaded are.
+  - *Preview card header.* A third, pre-existing bug found while verifying the first two — see §8.
+    Fixed and re-measured: the source pill went from `2 × 994 px` to `243 × 79 px`.
+- **The X OAuth tokens were destroyed** and posting will fail until they are replaced. See the
+  caution in §9 for the cause. The access and refresh tokens, the client id and the client secret all
+  lived only in device SharedPreferences; the Gemini key and X bearer token self-healed from the
+  `BuildConfig`/`.env` fallback. Re-authorise with `tools/x_oauth_setup.py` (§6) — and remember the
+  Developer Portal cannot grant `media.write`, so a Portal-generated token will silently post
+  text-only.
+- Also still unverified: the **standard (non-Blue) character-limit** guard in `approveAndPostToX()`,
+  since the account is X Blue and the premium limit applies.
 - Saving tokens through Settings does not reset `x_token_expires_at` (§6, *Token lifecycle*). One
   line to fix: set `xTokenExpiresAt = 0L` on manual save.
 - `docs/screenshots/05-settings.png` predates the `cXo1...` placeholder fix and wants a re-shoot.

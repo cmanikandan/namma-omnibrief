@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -48,6 +49,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -60,6 +62,16 @@ import com.example.ui.theme.RoseError
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.VioletAccent
+
+/**
+ * Width cap for the source pill + status badge column in the card header.
+ *
+ * Keeps a long custom publication name from eating the row and ellipsizing the draft label into
+ * uselessness. Sized to fit the longest entry in the built-in publisher list at the default text
+ * scale; beyond that the pill ellipsizes, which is acceptable because the same value is also shown
+ * on the chip at the top of the screen.
+ */
+private val SOURCE_COLUMN_MAX_WIDTH = 190.dp
 
 @Composable
 fun XPostPreviewCard(
@@ -103,12 +115,27 @@ fun XPostPreviewCard(
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             // Header / Author Identity
+            //
+            // The identity block carries the weight and the source column does not. Compose
+            // measures unweighted children first, so the pill gets the width it actually needs and
+            // the label absorbs whatever is left. Without this the row was plain SpaceBetween with
+            // no weight anywhere, and a long batchLabel — "Sample: Financial Times • 1 of 1" is
+            // enough — took the entire width and squeezed the pill to two pixels. It then wrapped
+            // one character per line, grew to about a full screen tall and pushed the post body off
+            // the bottom, which reads as "the draft is empty".
+            //
+            // `fill = false` matters: a short label must not stretch and shove the pill to the far
+            // edge. The label ellipsizes rather than wrapping, because two lines of title would
+            // misalign it against the 42.dp avatar.
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.weight(1f, fill = false),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     if (imageUri != null) {
                         // Thumbnail of the exact photo this draft came from.
                         AsyncImage(
@@ -139,13 +166,16 @@ fun XPostPreviewCard(
 
                     Spacer(modifier = Modifier.width(12.dp))
 
-                    Column {
+                    Column(modifier = Modifier.weight(1f, fill = false)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = batchLabel ?: "Executive Brief",
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = TextPrimary
+                                color = TextPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Icon(
@@ -158,12 +188,21 @@ fun XPostPreviewCard(
                         Text(
                             text = if (isXBlue) "@User • X Blue Long-Form" else "@User • Standard Post",
                             fontSize = 12.sp,
-                            color = TextSecondary
+                            color = TextSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
 
-                Column(horizontalAlignment = Alignment.End) {
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // Capped as well, so a long custom source cannot starve the label in the other
+                // direction. 190.dp fits "Source: Washington Post" at the default text scale.
+                Column(
+                    modifier = Modifier.widthIn(max = SOURCE_COLUMN_MAX_WIDTH),
+                    horizontalAlignment = Alignment.End
+                ) {
                     // Source Pill Badge
                     Box(
                         modifier = Modifier
@@ -175,11 +214,19 @@ fun XPostPreviewCard(
                             .testTag("source_badge_clickable")
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            // Just the publication, not "Source: <publication>". The pencil and the
+                            // pill styling already say what this is, and the eight characters of
+                            // prefix were coming straight out of the draft label's budget — with
+                            // them the label ellipsised to "Sample: …", losing the "2 of 3" that
+                            // tells you which draft in a batch you are looking at.
                             Text(
-                                text = "Source: $source",
+                                text = source,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = CyanAccent
+                                color = CyanAccent,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Icon(

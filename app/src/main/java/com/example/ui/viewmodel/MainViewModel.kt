@@ -6,6 +6,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
 import android.widget.Toast
 import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
@@ -234,6 +235,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      */
     private var sourceIsUserOverride: Boolean = false
 
+    /**
+     * Room id of the History row written by the current article analysis, if there is one.
+     *
+     * Kept so that correcting the publication can rewrite the archived copy as well as the live
+     * drafts. Without it the Archive tab quietly kept the masthead the user had just rejected —
+     * the post went out correct and the local record disagreed with it.
+     */
+    private var archivedArticleBriefId: Long? = null
+
     val showSourceDialog = MutableStateFlow(false)
 
     val isAnalyzingArticle = MutableStateFlow(false)
@@ -327,6 +337,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (newSource.isBlank() || newSource == AUTO_DETECT_LABEL) return
         if (postDrafts.value.isEmpty()) return
 
+        val anyPosted = postDrafts.value.any { it.status == DraftPostStatus.POSTED }
+
         postDrafts.value = postDrafts.value.map { draft ->
             if (draft.status == DraftPostStatus.POSTED) return@map draft
             val oldSource = draft.source.ifBlank { fallbackOldSource }
@@ -335,6 +347,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             else draft.copy(text = retargeted, source = newSource)
         }
         activePostDraft.value = postDrafts.value.firstOrNull()?.text ?: activePostDraft.value
+
+        // Skipped once anything in the batch is live, for the same reason the posted drafts above
+        // are skipped: the archive is a record of what was actually sent, and rewriting it would
+        // make the local copy disagree with the timeline without saying so.
+        if (!anyPosted) retargetArchivedBrief(newSource)
+    }
+
+    /**
+     * Rewrites the History row for the current batch so it names [newSource] too.
+     *
+     * The row's own `sourceOrSpeaker` is the old name, which is more reliable than anything the
+     * caller can pass — it is exactly what was written at analysis time. Failures are swallowed:
+     * the archive is a convenience, and losing the rewrite must never break correcting the chip.
+     */
+    private fun retargetArchivedBrief(newSource: String) {
+        val id = archivedArticleBriefId ?: return
+        viewModelScope.launch {
+            try {
+                val existing = repository.getItemById(id) ?: return@launch
+                val rewritten = retargetSource(existing.content, existing.sourceOrSpeaker, newSource)
+                if (rewritten == existing.content && existing.sourceOrSpeaker == newSource) return@launch
+                repository.updateItem(
+                    existing.copy(content = rewritten, sourceOrSpeaker = newSource)
+                )
+            } catch (e: Exception) {
+                Log.w("MainViewModel", "Could not retarget archived brief $id to $newSource", e)
+            }
+        }
     }
 
     // --- Draft queue editing ---
@@ -378,6 +418,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         batchProgress.value = null
         articleSource.value = prefs.defaultSource
         sourceIsUserOverride = false
+        archivedArticleBriefId = null
     }
 
     /**
@@ -524,7 +565,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 content = collected.joinToString("\n\n---\n\n") { "[${it.label}] ${it.text}" },
                 source = articleSource.value,
                 type = "X_POST",
-                imageCount = images.size
+                imageCount = images.size,
+                onSaved = { archivedArticleBriefId = it }
             )
         }
     }
@@ -1139,6 +1181,12 @@ Bengaluru has formally inaugurated its Sovereign AI & Deep Tech roadmap at the B
         Toast.makeText(context, "Loaded Namma Bengaluru Tech Summit keynote & brief!", Toast.LENGTH_SHORT).show()
     }
 
+    /**
+     * Writes a brief to History.
+     *
+     * [onSaved] receives the new row id. The article path uses it to remember which row belongs to
+     * the batch on screen, so correcting the publication can rewrite the archived copy too.
+     */
     private fun saveDraftToRoom(
         title: String,
         content: String,
@@ -1146,7 +1194,8 @@ Bengaluru has formally inaugurated its Sovereign AI & Deep Tech roadmap at the B
         type: String,
         imageCount: Int = 0,
         hasAudio: Boolean = false,
-        audioSecs: Int = 0
+        audioSecs: Int = 0,
+        onSaved: ((Long) -> Unit)? = null
     ) {
         viewModelScope.launch {
             val item = BriefItem(
@@ -1159,7 +1208,8 @@ Bengaluru has formally inaugurated its Sovereign AI & Deep Tech roadmap at the B
                 audioDurationSeconds = audioSecs,
                 status = "Draft"
             )
-            repository.saveWithRollover(item, maxLimit = 10)
+            val id = repository.saveWithRollover(item, maxLimit = 10)
+            onSaved?.invoke(id)
         }
     }
 
