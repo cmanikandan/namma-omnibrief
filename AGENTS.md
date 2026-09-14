@@ -92,11 +92,11 @@ app/src/main/java/com/example/
 ├── data/
 │   ├── local/                   # Room: OmniBriefDatabase, BriefItem, BriefItemDao
 │   ├── preferences/             # AppPreferences (SharedPreferences wrapper)
-│   ├── remote/                  # GeminiApiService, XApiService  (raw OkHttp + org.json)
+│   ├── remote/                  # GeminiApiService, XApiService, HackerNewsService  (raw OkHttp + org.json)
 │   └── repository/              # BriefRepository
 └── ui/
     ├── components/              # OmniTopBar, OmniNavBar, XPostPreviewCard, PhotoStripView, ...
-    ├── screens/                 # ArticleToXScreen, ConferenceReporterScreen, HistoryScreen, SettingsScreen
+    ├── screens/                 # HeadlinesScreen, ArticleToXScreen, ConferenceReporterScreen, HistoryScreen, SettingsScreen
     ├── theme/                   # Light theme (Color.kt, Theme.kt, Type.kt)
     └── viewmodel/               # MainViewModel — ALL state lives here
 ```
@@ -106,11 +106,15 @@ Conventions in force:
 - **Package is `com.example`**, applicationId is `com.aistudio.omnibrief.kypzmr`. Leftovers from the
   AI Studio scaffold. Renaming is a wide, risky change — leave them unless asked.
 - **No Navigation-Compose.** `MainActivity` switches on an `AppDestination` enum that lives in
-  `ui/components/OmniNavBar.kt`.
+  `ui/components/OmniNavBar.kt`. There are **five** destinations; `HEADLINES` is first and is the
+  launch destination.
 - **One ViewModel.** `MainViewModel : AndroidViewModel` exposes everything as public
   `MutableStateFlow`s and screens write to them directly
   (e.g. `viewModel.articleError.value = "..."`). Screens read with `collectAsStateWithLifecycle()`.
   Unconventional, but consistent — follow it rather than half-migrating to a cleaner pattern.
+- **The ViewModel is hoisted into `setContent`**, not obtained inside the theme. `MyApplicationTheme`
+  takes a `fontScale` parameter, so it has to observe the ViewModel from outside. Don't push the
+  `viewModel()` call back down into the composable tree or live font scaling breaks.
 - **No Retrofit/Moshi usage** despite the dependencies being declared. Networking is hand-rolled
   OkHttp with `org.json`. Keep it that way for consistency.
 - **DataStore is commented out** in `app/build.gradle.kts`; settings use plain `SharedPreferences`.
@@ -195,6 +199,41 @@ Limits live in `AppPreferences.X_STANDARD_CHAR_LIMIT` / `X_PREMIUM_CHAR_LIMIT`.
 
 ---
 
+## 5A. Hacker News home screen (Today tab)
+
+`data/remote/HackerNewsService.kt` + `ui/screens/HeadlinesScreen.kt`. This is the **launch
+destination**, so it must degrade gracefully — it is the first thing a brand-new install renders.
+
+- **Endpoint is the Algolia HN Search API**, `https://hn.algolia.com/api/v1`. Chosen specifically
+  because it is **public and keyless**: the home screen has to populate before the user has
+  configured a Gemini key. Do not move this behind a credential.
+- **Ranking is interest-first, not popularity-first**:
+  `score = points + 600 × interestMatches + 250 if front page`. The 600 is deliberately large enough
+  that a single interest match beats several hundred points of unrelated hype. The user asked for
+  *their* topics, not the HN front page.
+- `INTERESTS` and `QUERY_TERMS` encode the user's stated list: genai, openai, gemini, google,
+  anthropic, india tech, plus general burning news.
+
+### Two things here that look wrong but are not
+
+1. **`QUERY_TERMS` are single words.** Algolia **ANDs** the words in a query, so `"india tech"`
+   matched almost nothing — it required both tokens in the same story. It is `"india"` for that
+   reason. If you add a term, keep it to one word or verify the hit count first.
+2. **`MAX_PER_INTEREST = 3` exists on purpose.** Without the diversity cap and its backfill, a big
+   OpenAI news day fills all ten slots with OpenAI stories. Do not remove it as "redundant with the
+   ranking" — it is the thing that keeps the list readable.
+
+The ranking logic is mirrored offline in
+`<artifacts>/scratch/check_hn_ranking.py`, which hits the live API and prints the chosen ten. Use it
+to sanity check any scoring change without rebuilding the app. Keep it in sync with `INTERESTS` and
+`QUERY_TERMS`.
+
+Loading state is a set of shimmering placeholder cards (`ShimmerCard`). On a fast connection the
+fetch completes in well under a second, so the shimmer is genuinely hard to catch in a screenshot —
+that is not evidence it is missing.
+
+---
+
 ## 6. X integration
 
 `data/remote/XApiService.kt`.
@@ -248,12 +287,31 @@ Implementation:
   dark surfaces. (Note: the colour *identifiers* are still named `ObsidianCard`, `ObsidianSurface`
   etc. from the original dark palette — the names lie, the values are light. Renaming them is
   cosmetic churn; leave them.)
+- **The palette is warm, not clinical.** The user's words were "looks like a clinical app… make it
+  alive like an Insta app". Backgrounds are warm off-white (`ObsidianBg #FFF8F5`), the accent is
+  jacaranda magenta (`CyanAccent #C91F66` — another name that lies, it has not been cyan for a
+  while), and there are three gradient vals for hero surfaces: `SunsetGradient`, `VioletGradient`
+  and `BrandGradient`. **Every text/surface pair was checked numerically against WCAG AA**, worst
+  case 4.6:1 on `ChipBlush`. If you introduce a colour, check it rather than eyeballing it.
+- **Typography is scalable, and that is a contract.** `appTypography(scale)` in `Type.kt` multiplies
+  the fontSize and lineHeight of all 15 M3 styles. **letterSpacing is deliberately not scaled** —
+  scaling it makes large headlines look loose. Never hardcode an `sp` value in a screen where a
+  `MaterialTheme.typography` style would do, or that text will stop responding to the setting.
+  Default is `AppPreferences.DEFAULT_FONT_SCALE = 1.15f` (the user asked for a slightly bigger
+  default); the user-facing options live in `FONT_SCALE_OPTIONS`.
 - **Bengaluru identity** is a requirement: `img_bengaluru_logo.jpg` in `OmniTopBar` and the launcher
   icon, the "ನಮ್ಮ BLR" badge, and the "Namma BLR" sample buttons. App name is **Namma Omnibrief**.
+- **The launcher icon puts the artwork in the `<background>` layer**, not the foreground. The art is
+  an opaque full-bleed raster with no alpha, so insetting it as a foreground renders as a square
+  photo floating inside the launcher's circular mask. `<foreground>` is therefore
+  `@drawable/ic_launcher_fg_transparent` and `<monochrome>` is a hand-authored vector silhouette for
+  Android 13+ themed icons. The raster lives at `mipmap-*/ic_launcher_bg_art.png`, sized 108dp per
+  density (108/162/216/324/432 px), with the motif inside the centre ~60% so no mask shape clips it.
+  Legacy API 24–25 rasters are `mipmap-*/ic_launcher.png` at 48dp per density.
 - **Bottom clearance.** Every scrollable screen must clear the bottom navigation bar. Current
-  values: Article 120dp, Settings 120dp, Conference 100dp, History `contentPadding(bottom = 110.dp)`.
-  If you add a screen, do the same — "I can't scroll down to see the stuff at the bottom" was a real
-  reported bug.
+  values: Headlines 120dp, Article 120dp, Settings 120dp, Conference 100dp, History
+  `contentPadding(bottom = 110.dp)`. If you add a screen, do the same — "I can't scroll down to see
+  the stuff at the bottom" was a real reported bug.
 - **Key entry.** Every credential field has Paste + Clear via the shared `KeyFieldActions`
   composable, and Settings has a bulk **"Import All Keys From Clipboard"** card backed by
   `parseKeyBlob()` (tolerates `=` and `:`, `export ` prefixes, quotes, trailing commas, `#`/`//`
@@ -295,15 +353,32 @@ export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 
 ## 11. Known gaps / candidate next steps
 
-- **Partial on-device verification (2026-09-14).** Installed and launched on a physical **Pixel 10,
-  Android 17 (API 37)**, connected over wireless debugging. `MainActivity` reaches the resumed state
-  with no crash and the Article screen renders correctly: light theme, Bengaluru logo, "ನಮ್ಮ BLR"
-  badge, model line, and the four-tab bottom nav ("Archive (10)" confirms Room is populated).
-  That run also caught a real layout bug — the source chip wrapped mid-word and collided with the
-  heading, because the header `Row` used `SpaceBetween` with no `weight` on either child. Fixed.
-  **Still unverified:** the Conference, History and Settings screens; scroll clearance on all four;
-  the multi-image batch queue; the paste buttons. Capturing those needs the handset unlocked —
-  `adb` cannot bypass the lock screen, and a screenshot of a locked phone is simply black.
+- **On-device verification (2026-09-14, two passes).** Physical **Pixel 10, Android 17 (API 37)**
+  over wireless debugging. `MainActivity` reaches the resumed state with no crash and no
+  `AndroidRuntime` errors.
+  - **Pass 1** caught two real bugs the compiler and the unit tests could not see: the source chip
+    wrapped mid-word and collided with the heading (header `Row` used `SpaceBetween` with no
+    `weight` on either child), and the nav showed a hardcoded "Archive (10)" while History said
+    "0 briefs". Both fixed.
+  - **Pass 2** (UI overhaul) confirmed: Today is the launch tab and renders ten live, correctly
+    interest-matched HN stories; the warm palette and the larger default type render as intended;
+    the five-tab nav lays out correctly; Settings → Appearance → Text Size shows "Comfortable"
+    selected with each option previewing at its own scale; Settings scrolls clear of the nav bar and
+    the saved keys survived reinstall; tapping a headline opens the source article in the browser;
+    and the new adaptive launcher icon renders correctly under the circular mask with nothing
+    clipped. It also caught the "ನಮ್ಮ BLR" badge still using the old mint-green `EmeraldVerified`
+    against the new warm palette. Fixed.
+  - **Still unverified on device:** the Conference and History screens since the restyle; the
+    multi-image batch queue; the paste buttons; the shimmer loading state (the HN fetch returns in
+    under a second, so it cannot be captured without throttling the network).
+  - Capturing anything needs the handset unlocked — `adb` cannot bypass the lock screen, and a
+    screenshot of a locked phone is simply black. Check
+    `adb shell dumpsys window | grep mDreamingLockscreen` first.
+  - Don't use `adb shell monkey -p … -c LAUNCHER 1` to launch: it injects a stray tap that has
+    previously hit a button and produced a spurious error banner. Use
+    `adb shell am start -n com.aistudio.omnibrief.kypzmr/com.example.MainActivity`.
+  - Nav tap targets shift when the tab count changes. Get real bounds with
+    `adb shell uiautomator dump` rather than guessing coordinates.
 - X posting has never been executed end to end (see §6).
 - Conference photo picker allows `maxItems = 30` while the article picker caps at 10 — intentional,
   but worth confirming if the conference flow is ever revisited.

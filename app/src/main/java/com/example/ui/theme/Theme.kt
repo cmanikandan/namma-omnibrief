@@ -26,11 +26,13 @@ private val ModernLightColorScheme = lightColorScheme(
 fun MyApplicationTheme(
     darkTheme: Boolean = false,
     dynamicColor: Boolean = false,
+    /** Whole-app text scale from Settings. 1.0 is the designed baseline. */
+    fontScale: Float = 1.0f,
     content: @Composable () -> Unit,
 ) {
     MaterialTheme(
         colorScheme = ModernLightColorScheme,
-        typography = Typography,
+        typography = appTypography(fontScale),
         content = content
     )
 }

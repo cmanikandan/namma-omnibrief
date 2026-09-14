@@ -19,6 +19,8 @@ import com.example.data.preferences.AppPreferences
 import com.example.data.remote.ArticleAnalysisResult
 import com.example.data.remote.ConferenceReportResult
 import com.example.data.remote.GeminiApiService
+import com.example.data.remote.HackerNewsService
+import com.example.data.remote.HeadlineItem
 import com.example.data.remote.XApiService
 import com.example.data.remote.XPostResult
 import com.example.data.repository.BriefRepository
@@ -71,7 +73,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val audioPlayer = AudioPlayerManager()
 
     // Navigation
-    private val _currentDestination = MutableStateFlow(AppDestination.ARTICLE_TO_X)
+    private val _currentDestination = MutableStateFlow(AppDestination.HEADLINES)
     val currentDestination: StateFlow<AppDestination> = _currentDestination.asStateFlow()
 
     fun navigateTo(dest: AppDestination) {
@@ -84,6 +86,77 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = emptyList()
     )
+
+    // --- Home: Hacker News headlines matched to the user's interests ---
+    private val hackerNews = HackerNewsService()
+    val headlines = MutableStateFlow<List<HeadlineItem>>(emptyList())
+    val isLoadingHeadlines = MutableStateFlow(false)
+    val headlinesError = MutableStateFlow<String?>(null)
+    val headlinesLastUpdated = MutableStateFlow<String?>(null)
+
+    /**
+     * Observable mirror of [AppPreferences.fontScale]. Backing the theme with a flow means the
+     * whole UI restyles the moment the user moves the slider, with no restart.
+     */
+    val fontScale = MutableStateFlow(prefs.fontScale)
+
+    fun setFontScale(value: Float) {
+        prefs.fontScale = value
+        fontScale.value = prefs.fontScale
+    }
+
+    init {
+        // Load on construction so the home screen has content the moment it is shown.
+        refreshHeadlines()
+    }
+
+    /**
+     * Reloads the headline feed. Safe to call repeatedly; overlapping calls are ignored so a
+     * pull-to-refresh spam cannot stack requests.
+     */
+    fun refreshHeadlines() {
+        if (isLoadingHeadlines.value) return
+        viewModelScope.launch {
+            isLoadingHeadlines.value = true
+            headlinesError.value = null
+            try {
+                headlines.value = hackerNews.fetchTopHeadlines()
+                headlinesLastUpdated.value =
+                    SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date())
+            } catch (e: Exception) {
+                headlinesError.value = e.message ?: "Could not reach Hacker News."
+            } finally {
+                isLoadingHeadlines.value = false
+            }
+        }
+    }
+
+    /** Opens a headline in the browser. */
+    fun openHeadline(item: HeadlineItem) {
+        runCatching {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(item.openUrl))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+        }.onFailure {
+            Toast.makeText(context, "Could not open link", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * Sends a headline into the Article -> X flow as pasted text, so the user can turn something
+     * they just read into a draft without retyping it.
+     */
+    fun draftPostFromHeadline(item: HeadlineItem) {
+        articleTextInput.value = buildString {
+            append(item.title)
+            if (item.domain.isNotBlank()) {
+                append("\n\nSource: ${item.domain}")
+            }
+            append("\n${item.openUrl}")
+        }
+        articleError.value = null
+        navigateTo(AppDestination.ARTICLE_TO_X)
+    }
 
     // --- Function 1: Article to X Post State ---
     val articleTextInput = MutableStateFlow("")

@@ -12,9 +12,11 @@ import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Whatshot
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.outlined.Whatshot
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -33,6 +35,7 @@ import com.example.ui.theme.ObsidianSurface
 import com.example.ui.theme.TextSecondary
 
 enum class AppDestination(val label: String, val testTag: String) {
+    HEADLINES("Today", "nav_tab_headlines"),
     ARTICLE_TO_X("X Drafter", "nav_tab_article_to_x"),
     CONFERENCE("Conference", "nav_tab_conference"),
     HISTORY("Archive", "nav_tab_history"),
@@ -57,6 +60,36 @@ fun OmniNavBar(
         contentColor = TextSecondary,
         tonalElevation = 8.dp
     ) {
+        NavigationBarItem(
+            selected = selectedDestination == AppDestination.HEADLINES,
+            onClick = { onDestinationSelected(AppDestination.HEADLINES) },
+            icon = {
+                Icon(
+                    imageVector = if (selectedDestination == AppDestination.HEADLINES) {
+                        Icons.Filled.Whatshot
+                    } else {
+                        Icons.Outlined.Whatshot
+                    },
+                    contentDescription = "Today's headlines"
+                )
+            },
+            label = {
+                Text(
+                    text = AppDestination.HEADLINES.label,
+                    fontSize = 11.sp,
+                    fontWeight = if (selectedDestination == AppDestination.HEADLINES) FontWeight.Bold else FontWeight.Normal
+                )
+            },
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = Color.White,
+                selectedTextColor = CyanAccent,
+                indicatorColor = CyanAccent,
+                unselectedIconColor = TextSecondary,
+                unselectedTextColor = TextSecondary
+            ),
+            modifier = Modifier.testTag(AppDestination.HEADLINES.testTag)
+        )
+
         NavigationBarItem(
             selected = selectedDestination == AppDestination.ARTICLE_TO_X,
             onClick = { onDestinationSelected(AppDestination.ARTICLE_TO_X) },

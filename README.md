@@ -37,7 +37,23 @@ Bengaluru identity.
 
 ## Features
 
-### 1. Article → X
+### 1. Today — your Hacker News top 10
+
+The screen the app opens on. It pulls live stories from Hacker News and ranks them against a fixed
+set of interests — **GenAI, OpenAI, Gemini, Google, Anthropic, India tech** — rather than by raw
+popularity, so a 2000-point story about an unrelated topic will not push out a relevant one.
+
+- **No key required.** It uses the public, keyless [Algolia Hacker News Search
+  API](https://hn.algolia.com/api), so the home screen is populated the very first time you launch
+  the app, before you have configured anything.
+- **Ranking**: `points + 600 × (interest matches) + 250 if currently on the HN front page`. A
+  diversity cap of 3 stories per interest stops a single big news day filling the whole list.
+- **Loading state**: shimmering placeholder cards while the fetch is in flight; pull the refresh
+  button in the header to re-rank at any time.
+- **Tap a card** to open the article, or tap **Draft** to pipe that headline straight into the
+  Article → X flow.
+
+### 2. Article → X
 
 - **Capture or import**: take a photo, pick from the gallery, or paste raw text.
 - **Batch of up to 10 images**: queue several photos at once. Each image is analysed independently
@@ -56,16 +72,23 @@ Bengaluru identity.
   spacing between calls, showing per-draft status.
 - **X Blue long-form** supported via a toggle in Settings.
 
-### 2. Conference Reporter
+### 3. Conference Reporter
 
 Capture slides, record audio notes and session metadata, then synthesize a structured report:
 executive summary, key takeaways, slide insights, notable quotes and action items.
 
-### 3. History, Email and Drive
+### 4. History, Email and Drive
 
 - The last **10** briefs are stored locally (Room, FIFO rollover). Nothing is uploaded to a server.
 - Any brief can be emailed to yourself via Gmail or saved to Google Drive as Markdown, using
   standard Android share intents.
+
+### 5. Adjustable text size
+
+**Settings → Appearance → Text Size** scales every piece of type in the app — five steps from
+Compact to Extra Large. Each option renders its own preview at its own scale, so you can see the
+result before you commit to it. The default is **Comfortable (1.15×)**, deliberately larger than
+stock Material. The change applies immediately, with no restart.
 
 ---
 
@@ -420,7 +443,9 @@ outright.
 | Persistence | Room (`BriefItem`, 10-item FIFO rollover) + `SharedPreferences` for settings |
 | Networking | OkHttp + `org.json`, no generated clients |
 | Gemini | `generativelanguage.googleapis.com/v1beta`, images downscaled to 1600px and sent as base64 JPEG `inlineData` |
+| Hacker News | `hn.algolia.com/api/v1` — public and keyless, so the Today tab works with nothing configured |
 | X | `api.twitter.com/2/tweets`, with OAuth 2.0 refresh at `/2/oauth2/token` |
+| Typography | `appTypography(scale)` multiplies every M3 text style, driven by a `fontScale` StateFlow |
 | Export | Android share intents to Gmail and Drive via a `FileProvider` |
 
 ```
@@ -428,15 +453,16 @@ app/src/main/java/com/example/
 ├── MainActivity.kt              # Scaffold, top bar, bottom nav
 ├── data/
 │   ├── local/                   # Room database, entity, DAO
-│   ├── preferences/             # AppPreferences (keys, model, toggles)
-│   ├── remote/                  # GeminiApiService, XApiService
+│   ├── preferences/             # AppPreferences (keys, model, toggles, font scale)
+│   ├── remote/                  # GeminiApiService, XApiService, HackerNewsService
 │   └── repository/              # BriefRepository
 └── ui/
     ├── components/              # OmniTopBar, OmniNavBar, XPostPreviewCard, PhotoStripView
-    ├── screens/                 # ArticleToX, ConferenceReporter, History, Settings
-    ├── theme/                   # Light theme, colours
+    ├── screens/                 # Headlines, ArticleToX, ConferenceReporter, History, Settings
+    ├── theme/                   # Light theme, colours, scalable typography
     └── viewmodel/               # MainViewModel
 ```
+
 
 ---
 

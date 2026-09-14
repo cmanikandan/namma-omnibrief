@@ -36,7 +36,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.ui.theme.CyanAccent
-import com.example.ui.theme.EmeraldVerified
 import com.example.ui.theme.ObsidianBorder
 import com.example.ui.theme.ObsidianSurface
 import com.example.ui.theme.TextPrimary
@@ -95,15 +94,18 @@ fun OmniTopBar(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(EmeraldVerified.copy(alpha = 0.12f))
-                                .border(0.5.dp, EmeraldVerified.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                                // Jacaranda magenta, not the old mint "verified" green — the badge
+                                // sits directly beside the warm gradient logo and the green read as
+                                // a leftover from the previous palette.
+                                .background(CyanAccent.copy(alpha = 0.12f))
+                                .border(0.5.dp, CyanAccent.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
                                 .padding(horizontal = 5.dp, vertical = 2.dp)
                         ) {
                             Text(
                                 text = "ನಮ್ಮ BLR",
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.ExtraBold,
-                                color = EmeraldVerified,
+                                color = CyanAccent,
                                 letterSpacing = 0.5.sp
                             )
                         }

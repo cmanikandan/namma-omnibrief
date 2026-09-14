@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ContentPaste
@@ -61,7 +62,9 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.widget.Toast
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.preferences.AppPreferences
+import com.example.ui.theme.ChipBlush
 import com.example.ui.theme.CyanAccent
 import com.example.ui.theme.EmeraldVerified
 import com.example.ui.theme.ObsidianBorder
@@ -70,6 +73,7 @@ import com.example.ui.theme.ObsidianSurface
 import com.example.ui.theme.RoseError
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import com.example.ui.theme.TextTertiary
 import com.example.ui.theme.VioletAccent
 import com.example.ui.viewmodel.MainViewModel
 
@@ -80,6 +84,7 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val prefs = viewModel.prefs
+    val currentFontScale by viewModel.fontScale.collectAsStateWithLifecycle()
     val clipboard = LocalClipboardManager.current
 
     /** Reads the clipboard, trims stray whitespace/newlines that break tokens, and reports if empty. */
@@ -393,6 +398,96 @@ fun SettingsScreen(
                     ),
                     shape = RoundedCornerShape(10.dp)
                 )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // SECTION 1b: APPEARANCE / TEXT SIZE
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(ObsidianSurface)
+                .border(1.dp, ObsidianBorder, RoundedCornerShape(16.dp))
+                .padding(18.dp)
+        ) {
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.FormatSize,
+                        contentDescription = null,
+                        tint = CyanAccent,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "APPEARANCE",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = CyanAccent,
+                        letterSpacing = 1.2.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Text(
+                    text = "Text Size",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+                Text(
+                    text = "Applies everywhere in the app, straight away.",
+                    fontSize = 12.sp,
+                    color = TextTertiary
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                AppPreferences.FONT_SCALE_OPTIONS.forEach { (scaleValue, label) ->
+                    val selected = kotlin.math.abs(currentFontScale - scaleValue) < 0.01f
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 3.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (selected) ChipBlush else ObsidianCard)
+                            .border(
+                                width = if (selected) 2.dp else 1.dp,
+                                color = if (selected) CyanAccent else ObsidianBorder,
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            .clickable { viewModel.setFontScale(scaleValue) }
+                            .testTag("font_scale_${label.lowercase().replace(' ', '_')}")
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = label,
+                                fontSize = 14.sp,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                color = TextPrimary
+                            )
+                            // Preview the option at its own scale so the choice is visible up front.
+                            Text(
+                                text = "The quick brown fox",
+                                fontSize = (14 * scaleValue).sp,
+                                color = TextSecondary
+                            )
+                        }
+                        if (selected) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = "Selected",
+                                tint = CyanAccent,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
             }
         }
 

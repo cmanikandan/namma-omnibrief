@@ -19,6 +19,7 @@ import com.example.ui.components.OmniNavBar
 import com.example.ui.components.OmniTopBar
 import com.example.ui.screens.ArticleToXScreen
 import com.example.ui.screens.ConferenceReporterScreen
+import com.example.ui.screens.HeadlinesScreen
 import com.example.ui.screens.HistoryScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.theme.MyApplicationTheme
@@ -29,8 +30,12 @@ class MainActivity : ComponentActivity() {
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
     setContent {
-      MyApplicationTheme {
-        OmniBriefApp()
+      // Hoisted so the theme can react to the font-size preference without a restart.
+      val appViewModel: MainViewModel = viewModel()
+      val scale by appViewModel.fontScale.collectAsStateWithLifecycle()
+
+      MyApplicationTheme(fontScale = scale) {
+        OmniBriefApp(appViewModel)
       }
     }
   }
@@ -58,6 +63,12 @@ fun OmniBriefApp(viewModel: MainViewModel = viewModel()) {
     }
   ) { innerPadding ->
     when (currentDestination) {
+      AppDestination.HEADLINES -> {
+        HeadlinesScreen(
+          viewModel = viewModel,
+          modifier = Modifier.padding(innerPadding)
+        )
+      }
       AppDestination.ARTICLE_TO_X -> {
         ArticleToXScreen(
           viewModel = viewModel,

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Monochrome layer for Android 13+ themed icons.
+
+    The launcher tints this single-colour silhouette with the user's wallpaper
+    palette, so it must be a flat shape with no gradients and no colour of its
+    own. This is a simplified Vidhana Soudha: finial, dome, drum, colonnade
+    block, two flanking towers and a plinth.
+
+    All geometry is kept inside the 66dp centre safe zone of the 108dp
+    viewport (roughly x/y 21..87) so no part is clipped by any mask shape.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108"
+    android:tint="#FFFFFF">
+
+    <!-- Finial above the dome -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M52.5,27h3v5h-3z" />
+
+    <!-- Dome -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M43,46 A11,11 0 0 1 65,46 Z" />
+
+    <!-- Drum beneath the dome -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M47,46h14v5h-14z" />
+
+    <!-- Main colonnade block -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M38,51h32v14h-32z" />
+
+    <!-- Flanking towers -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M31,55h7v10h-7z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M70,55h7v10h-7z" />
+
+    <!-- Plinth -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M28,65h52v5h-52z" />
+
+    <!-- Circuit trace stem and nodes, echoing the full-colour artwork -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M53,70h2v8h-2z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,78m-3,0a3,3 0 1,0 6,0a3,3 0 1,0 -6,0" />
+</vector>

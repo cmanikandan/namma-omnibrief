@@ -19,8 +19,24 @@ class AppPreferences(context: Context) {
         private const val KEY_IS_X_BLUE = "is_x_blue"
         private const val KEY_DEFAULT_SOURCE = "default_source"
         private const val KEY_IS_LIGHT_THEME = "is_light_theme"
+        private const val KEY_FONT_SCALE = "font_scale"
 
         const val DEFAULT_MODEL = "gemini-3.8-flash"
+
+        /**
+         * Default text scale. Deliberately above 1.0 — the stock sizing read too small, so the
+         * app ships slightly larger and the user can adjust from Settings.
+         */
+        const val DEFAULT_FONT_SCALE = 1.15f
+
+        /** Selectable text sizes, applied to the whole Material type scale. */
+        val FONT_SCALE_OPTIONS: List<Pair<Float, String>> = listOf(
+            0.90f to "Compact",
+            1.00f to "Standard",
+            1.15f to "Comfortable",
+            1.30f to "Large",
+            1.50f to "Extra Large"
+        )
 
         /** Maximum number of article images that can be queued for a single batch. */
         const val MAX_ARTICLE_IMAGES = 10
@@ -121,4 +137,12 @@ class AppPreferences(context: Context) {
     var isLightTheme: Boolean
         get() = prefs.getBoolean(KEY_IS_LIGHT_THEME, true) // Default to Light theme as requested
         set(value) = prefs.edit().putBoolean(KEY_IS_LIGHT_THEME, value).apply()
+
+    /**
+     * Whole-app text scale. Clamped to the range the type scale is designed for, so a stale or
+     * out-of-range stored value can never render the UI unreadable.
+     */
+    var fontScale: Float
+        get() = prefs.getFloat(KEY_FONT_SCALE, DEFAULT_FONT_SCALE).coerceIn(0.85f, 1.6f)
+        set(value) = prefs.edit().putFloat(KEY_FONT_SCALE, value.coerceIn(0.85f, 1.6f)).apply()
 }
