@@ -169,6 +169,23 @@ The user's explicit requirements are encoded as 8 hard rules. Do not "improve" t
 `mainTopic` is surfaced in the UI as "Main topic analysed: …" so the user can verify the model
 locked on to the right story. Keep parsing it.
 
+### Two rules that exist because live testing caught a real failure
+
+Both were found running the real API against a photographed WSJ page. Do not relax them.
+
+1. **Rule 4 forbids promoting incidental mentions.** The model claimed Xbox was prioritising
+   *Fallout*, which appears in that article only inside a source's job title ("head of the studio
+   that makes 'Fallout' and 'Elder Scrolls'"). Plausible, confident, and wrong — the worst kind of
+   grounding error. The rule now bans treating job titles, captions, asides, examples and
+   comparisons as claims about the subject.
+2. **Rule 7 asks for ≤ 260 characters, not "under 280".** Asked for "strictly under 280" the model
+   returned **281** — X rejects that outright. Models count tokens, not characters, so they need
+   headroom rather than a boundary. There is also a **pre-flight guard in
+   `MainViewModel.approveAndPostToX()`** that fails an over-limit draft locally before the network
+   call; keep both layers, the prompt alone is not trustworthy here.
+
+Limits live in `AppPreferences.X_STANDARD_CHAR_LIMIT` / `X_PREMIUM_CHAR_LIMIT`.
+
 ---
 
 ## 6. X integration

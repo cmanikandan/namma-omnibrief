@@ -125,7 +125,18 @@ class XApiService {
                 onTokenRefreshed?.invoke(refresh.accessToken, refresh.refreshToken)
                 postRes = executePostRequest(currentToken, text)
             } else {
-                return@withContext XPostResult.Error("Session expired and refresh failed: ${refresh.error}")
+                // X refresh tokens are single-use: each refresh issues a new one and invalidates
+                // the old. A stale copy in Settings is by far the most common cause here, and the
+                // raw API message ("Value passed for the token was invalid") does not say so.
+                val hint = if (refresh.error?.contains("invalid", ignoreCase = true) == true) {
+                    "Your refresh token is no longer valid. X refresh tokens are single-use and " +
+                        "rotate on every refresh, so a saved copy goes stale once it has been used " +
+                        "elsewhere. Re-authorise the app in the X Developer Portal and paste the new " +
+                        "Access and Refresh tokens into Settings."
+                } else {
+                    refresh.error ?: "Unknown error"
+                }
+                return@withContext XPostResult.Error("Could not renew your X session. $hint")
             }
         }
 

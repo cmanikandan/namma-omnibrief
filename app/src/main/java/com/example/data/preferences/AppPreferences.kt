@@ -25,6 +25,10 @@ class AppPreferences(context: Context) {
         /** Maximum number of article images that can be queued for a single batch. */
         const val MAX_ARTICLE_IMAGES = 10
 
+        /** X hard character limits. Exceeding them makes the API reject the post outright. */
+        const val X_STANDARD_CHAR_LIMIT = 280
+        const val X_PREMIUM_CHAR_LIMIT = 25000
+
         /** Selectable Gemini models, newest first. All verified against the v1beta ListModels API. */
         val AVAILABLE_MODELS: List<Pair<String, String>> = listOf(
             "gemini-3.8-flash" to "Gemini Flash 3.8 (High Context)",

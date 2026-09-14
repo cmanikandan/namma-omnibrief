@@ -75,7 +75,7 @@ class GeminiApiService {
         promptBuilder.append("1. SINGLE MAIN TOPIC ONLY: A photographed newspaper or screenshot often captures neighbouring columns, adjacent headlines, advertisements, teasers, page furniture, or partially visible unrelated stories. Identify the ONE dominant article (largest headline, largest area, the story the photo is clearly centred on) and analyse ONLY that story. Completely ignore every peripheral or inadvertently captured item.\n")
         promptBuilder.append("2. STRICTLY GROUNDED: Use ONLY the content that is actually present in the supplied image/text. Do NOT use outside knowledge, do NOT infer events beyond the text, and do NOT add background the source does not state.\n")
         promptBuilder.append("3. NO EDITORIALISING: Report what the article says. No opinions, no praise, no criticism, no predictions, no 'this signals...', no calls to action, no rhetorical questions. Neutral, factual, third-person reporting voice.\n")
-        promptBuilder.append("4. If a figure, name, date or quote is illegible or absent, omit it rather than guessing. Never fabricate numbers.\n")
+        promptBuilder.append("4. If a figure, name, date or quote is illegible or absent, omit it rather than guessing. Never fabricate numbers. Do NOT promote an incidental mention into a claim: a product, company or person that appears only inside someone's job title, a photo caption, a quoted aside, an example or a comparison is NOT thereby part of the main subject's actions, plans or priorities. Attribute something to the subject only where the article explicitly does so.\n")
         promptBuilder.append("5. Tone: Professional, factual, objective, high signal-to-noise. NO emojis whatsoever.\n")
 
         promptBuilder.append("6. Source Identification: Determine the source publication (e.g. New York Times, Wall Street Journal, Financial Times, Times of India, Economic Times, The Hindu, Deccan Herald, Bloomberg, Reuters, etc.). ")
@@ -88,7 +88,7 @@ class GeminiApiService {
         if (isXBlue) {
             promptBuilder.append("7. Format: The author has an X Premium/Blue account, so write a crisp executive analysis (roughly 500-1200 characters) covering the core thesis, the verified figures/facts stated in the article, the stated implications, and exact source attribution (e.g. 'Source: Financial Times').\n")
         } else {
-            promptBuilder.append("7. Format: Standard X post format (strictly under 280 characters including attribution and tags), concise and factual with source attribution.\n")
+            promptBuilder.append("7. Format: Standard X post. The ENTIRE postDraft, including attribution and every hashtag, MUST be at most 260 characters. Aim for 200-250 characters to leave a safety margin; a post over 280 characters is rejected by X outright. Count carefully and shorten the wording rather than dropping the source attribution.\n")
         }
         promptBuilder.append("8. Include 2 to 4 precise, professional tags derived from the article subject (e.g. #Economy, #Markets, #TechPolicy).\n\n")
 

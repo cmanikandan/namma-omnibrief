@@ -93,16 +93,35 @@ X_BEARER_TOKEN=AAAA...
 Keys entered this way are stored in the app's private `SharedPreferences` on the device only, and
 are sent solely to Google and X over HTTPS.
 
-#### Option B — a local `.env` for development
+#### Option B — a local `.env` for development (cannot enable posting)
+
+> [!IMPORTANT]
+> A `.env` can supply **only** the Gemini key and the app-only X **Bearer** token. Neither of those
+> can publish a post. The app-only bearer is rejected by X with
+> `403 Unsupported Authentication` on `POST /2/tweets`, and the four OAuth 2.0 fields have **no**
+> build-time fallback — they are read from Settings only. **If you want to post to X, you must use
+> Option A.**
 
 Create a `.env` in the project root (it is git-ignored; see `.env.example`):
 
 ```
 GEMINI_API_KEY=your_key_here
-X_BEARER_TOKEN=your_token_here
+X_BEARER_TOKEN=your_token_here      # read-only endpoints; CANNOT post
 ```
 
-These are injected into `BuildConfig` at build time by the Secrets Gradle plugin.
+These two are injected into `BuildConfig` at build time by the Secrets Gradle plugin. Use this route
+when you just want article analysis working on a dev build without tapping through Settings.
+
+What each route can configure:
+
+| Credential | Settings (Option A) | `.env` (Option B) | Needed to post? |
+|---|---|---|---|
+| `GEMINI_API_KEY` | Yes | Yes | No (needed to analyse) |
+| `X_BEARER_TOKEN` | Yes | Yes | **No — cannot post** |
+| `X_CLIENT_ID` | Yes | **No** | **Yes** |
+| `X_CLIENT_SECRET` | Yes | **No** | **Yes** |
+| `X_ACCESS_TOKEN` | Yes | **No** | **Yes** |
+| `X_REFRESH_TOKEN` | Yes | **No** | Yes (to auto-renew) |
 
 Resolution order at runtime is: **Settings value → `BuildConfig` (`.env`) → empty**.
 

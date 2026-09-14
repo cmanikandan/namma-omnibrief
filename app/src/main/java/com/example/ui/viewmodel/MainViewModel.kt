@@ -316,6 +316,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
             val pending = postDrafts.value.filter { it.status != DraftPostStatus.POSTED && it.text.isNotBlank() }
             pending.forEachIndexed { index, draft ->
+                // Pre-flight length check. X hard-rejects an over-limit post, and doing it here
+                // gives a precise, actionable message instead of an opaque API error mid-batch.
+                val limit = if (prefs.isXBlue) AppPreferences.X_PREMIUM_CHAR_LIMIT
+                            else AppPreferences.X_STANDARD_CHAR_LIMIT
+                if (draft.text.length > limit) {
+                    failed++
+                    val over = draft.text.length - limit
+                    updateDraftStatus(draft.id) {
+                        it.copy(
+                            status = DraftPostStatus.FAILED,
+                            error = "Too long for X: ${draft.text.length} characters, $over over the " +
+                                "$limit limit. Edit the draft to shorten it" +
+                                if (!prefs.isXBlue) ", or enable X Blue in Settings." else "."
+                        )
+                    }
+                    return@forEachIndexed
+                }
+
                 updateDraftStatus(draft.id) { it.copy(status = DraftPostStatus.POSTING, error = null) }
                 batchProgress.value = "Posting ${index + 1} of ${pending.size}..."
 
