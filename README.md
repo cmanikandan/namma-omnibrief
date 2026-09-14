@@ -21,6 +21,7 @@ Bengaluru identity.
 [Adding your keys](#adding-your-keys). That is everything you need to run the app.
 
 - [Features](#features)
+- [Screenshots](#screenshots)
 - [Getting started with Android Studio](#getting-started-with-android-studio)
 - [Building from the command line](#building-from-the-command-line)
 - [Adding your keys](#adding-your-keys)
@@ -106,6 +107,23 @@ stock Material. The change applies immediately, with no restart.
 The one exception is the bottom navigation bar: five tabs share the width, so its labels grow with
 the setting only as far as they still fit on one line. Past that they hold their size rather than
 wrapping "Conference" onto a second line and pushing the bar up over the content.
+
+---
+
+## Screenshots
+
+Captured on a Pixel 10 (1080 × 2424, Android 17) running the debug build, at the default
+**Comfortable (1.15×)** text size.
+
+| Today | X Drafter | Conference |
+|---|---|---|
+| ![Today — Hacker News top 10 ranked by interest](docs/screenshots/01-today.png) | ![Article to X drafter](docs/screenshots/02-drafter.png) | ![Conference reporter](docs/screenshots/03-conference.png) |
+| Your top 10, interest-ranked, with **For you / Newest** sorting and a story age on every card. | Photograph or paste an article, then review the draft before anything is published. | Slides, live audio and session metadata in one capture. |
+
+| Archive | Settings | Text Size |
+|---|---|---|
+| ![Recent briefings archive](docs/screenshots/04-archive.png) | ![Settings](docs/screenshots/05-settings.png) | ![Text size options](docs/screenshots/06-text-size.png) |
+| The last 10 briefs, stored locally in Room with FIFO rollover. | Keys, model, and behaviour toggles — all on-device. | Five steps, each previewing itself at its own scale. |
 
 ---
 
@@ -447,11 +465,56 @@ tweet.read  tweet.write  users.read  offline.access  media.write
 **Symptom if it is missing:** posting text works fine, but attaching a photo fails with a bare
 `403 Forbidden` that says nothing about scopes. The app recognises this case and tells you so.
 
-**Fix:** re-authorise in the [X Developer Portal](https://developer.x.com/) with `media.write`
-ticked, then paste the new Access and Refresh tokens into Settings.
-
 **Workaround in the meantime:** Settings → turn off **Attach photo to post**. Posts then go out as
 text only, which is how the app behaved before attachments existed.
+
+#### Re-authorising with `media.write`
+
+Regenerating the tokens from the Developer Portal's *Keys and tokens* tab is **not** enough on its
+own, and it gives you no way to see which scopes you ended up with. Use the helper script instead —
+it asks for the scopes explicitly and prints back what the server actually granted.
+
+**1. Configure the App (one time).** [developer.x.com](https://developer.x.com/) → your Project →
+your App → **User authentication settings** → *Edit*:
+
+| Field | Value |
+|---|---|
+| App permissions | **Read and write** |
+| Type of App | **Web App, Automated App or Bot** (this is the confidential-client type the app expects) |
+| Callback URI / Redirect URL | `http://127.0.0.1:8765/callback` |
+| Website URL | anything valid, e.g. your GitHub profile |
+
+The callback is matched **exactly** — a trailing slash or `localhost` instead of `127.0.0.1` will be
+rejected. Save, then copy the **Client ID** and **Client Secret** from *Keys and tokens*.
+
+**2. Run the helper.**
+
+```bash
+python3 tools/x_oauth_setup.py
+```
+
+It prompts for the Client ID and the Client Secret (hidden — never passed as an argument, so it does
+not land in your shell history), generates a PKCE `S256` pair, opens the X authorisation page, and
+listens once on `127.0.0.1:8765` for the redirect. Approve the request in the browser.
+
+**3. Check the output.** The script prints the access token, the refresh token, and — the point of
+the exercise — the **granted scope list**, then states plainly whether `media.write` is in it:
+
+```
+Granted scopes: tweet.read tweet.write users.read offline.access media.write
+
+media.write IS present. Photo uploads will work.
+```
+
+If it says `media.write is MISSING`, the App permissions are still not **Read and write**; fix that
+and re-run.
+
+**4. Paste into the app.** Settings → *OAuth 2.0 User Context Keys* → **Access Token** and **Refresh
+Token** → Save → tap **Test Connection & Refresh Token**.
+
+The script writes nothing to disk. The tokens are secrets — clear your terminal scrollback
+afterwards. From here on the app renews the access token itself; each renewal rotates the refresh
+token and stores the new one.
 
 ### Getting the keys
 

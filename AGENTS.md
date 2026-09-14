@@ -304,6 +304,37 @@ How it was proven, and how to prove it again:
 Because the 403 is unexplained by X, `XApiService.uploadImage` **translates it** into a message
 naming `media.write` and pointing at the Settings escape hatch. Keep that translation.
 
+### Re-authorising: `tools/x_oauth_setup.py`
+
+A standalone stdlib script (no third-party deps) that runs the Authorization Code + PKCE `S256` flow
+against `https://x.com/i/oauth2/authorize`, catches the redirect on a one-shot local server at
+`http://127.0.0.1:8765/callback`, and exchanges the code at `https://api.x.com/2/oauth2/token`.
+
+Why it exists rather than "regenerate the tokens in the Developer Portal": the Portal button grants
+whatever the App's configured permissions allow and **shows you nothing about the resulting scopes**.
+The script requests the five scopes explicitly and then **prints the `scope` the server returned**,
+asserting `media.write` is in it. That printout is the only introspection X offers.
+
+- It **shells out to `curl`**, not `urllib` — Python on this Mac fails the token call with
+  `CERTIFICATE_VERIFY_FAILED`, which looks like an auth error and is not.
+- The client secret is read with `getpass`, never from an argument or a file. Nothing is written to
+  disk; the tokens are printed for the user to paste into Settings.
+- The redirect URI is **exact-matched** by X. It must be registered on the App verbatim.
+- **Status: written, never executed.** Running it mints live tokens on the user's account, so it
+  needs the user present. Do not claim it is verified.
+
+The procedure is documented for the user in README → *Re-authorising with `media.write`*.
+
+### Screenshots for the README
+
+`docs/screenshots/01-today.png … 06-text-size.png` are **tracked** and embedded in README §Screenshots.
+Captured from a real device, not an emulator, at the default 1.15× text size, then downscaled with
+`sips -Z 432` (Pillow is not installed on this machine).
+
+**Check every capture for credentials before committing.** `05-settings.png` is deliberately scrolled
+to the "Bulk Import All Keys" card, whose examples are placeholders (`GEMINI_API_KEY=AIzaSy…`); the
+key fields further down the screen are not in frame. If you re-shoot Settings, keep it that way.
+
 ### Image attachment
 
 - `XApiService.uploadImage(accessToken, imageUri, context)` → `MediaUploadResult`. Single-shot
