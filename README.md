@@ -31,6 +31,7 @@ Bengaluru identity.
 - [Architecture](#architecture)
 - [Testing](#testing)
 - [Deploying](#deploying)
+- [Roadmap](#roadmap)
 - [Troubleshooting](#troubleshooting)
 - [Privacy](#privacy)
 
@@ -859,6 +860,93 @@ recruiting a dozen people.
 4. Create the app, upload the bundle to **Internal testing**, add your own email as a tester.
 5. Complete Data safety, Content rating, App access and the privacy policy URL.
 6. Only if you want it public: run the 12-tester closed test, then apply for production.
+
+---
+
+## Roadmap
+
+An honest backlog, from a survey of the current code. Sizes: **S** ≈ an hour, **M** ≈ a sitting,
+**L** ≈ a project.
+
+### Next three
+
+1. **A LICENSE and CI.** The repo is public with neither. Both **S**.
+2. **Survive rotation and process death.** See below — this is the one that bites in daily use.
+3. **Accept shared articles.** The biggest change to how the app feels, for the least code.
+
+### Robustness — found by reading the code
+
+| Item | Size | Why it matters |
+|---|---|---|
+| **Survive rotation / process death** | M | `rememberSaveable` and `SavedStateHandle` appear **zero** times. Take a call mid-draft and your edits are gone, silently. |
+| **Cache the headline feed** | M | Today is the launch tab and nothing is persisted, so offline the app opens to an error and an empty screen. |
+| **Room migration safety** | S | `version = 1`, `exportSchema = false`, destructive fallback **off**. The first schema change crashes on launch, with no committed schema to migrate against. |
+| **Retry with backoff** | S–M | No retry anywhere. Gemini's fallback chain handles a rate-limited *model*, not a dropped connection. Never retry `POST /2/tweets` — double-post risk. |
+| **Reset token expiry on manual save** | S | Saving tokens in Settings leaves a stale `x_token_expires_at`. |
+
+### Repo and release
+
+| Item | Size |
+|---|---|
+| LICENSE (MIT or Apache-2.0 — without one, it is "all rights reserved") | S |
+| GitHub Actions: `assembleDebug` + unit tests on push | S |
+| Secret scanning with **push protection**, and Dependabot | S |
+| Enable R8 for release and fix the keep rules while there is time to test | M |
+| Drop the unused Retrofit / Moshi dependencies | S |
+
+### Quality
+
+- **Accessibility audit** — 30 of 80 `contentDescription`s are `null`. Correct for decorative icons,
+  wrong for interactive ones. **S–M**
+- **Split `MainViewModel`** — 1167 lines. Per-feature ViewModels, keeping the flat, DI-free
+  convention. **M–L**
+- **Untested paths** — the multi-image batch queue end to end; Conference and History on device
+  since the restyle; the non-Blue character guard (unit-testable without posting). **S–M**
+
+### Features
+
+| Item | Size | Note |
+|---|---|---|
+| **Share target (`ACTION_SEND`)** | M | Share from Chrome or X straight into the drafter. Removes the screenshot step entirely. |
+| **Draft from a URL** | M–L | Today's headlines can only be opened, not drafted from. Extraction is the hard part. |
+| **Regenerate with an instruction** | M | "Shorter." "Lead with the number." Today it is accept, hand-edit, or start over. |
+| **Auto-split into a thread** | M | Turns an over-limit draft from a blocked post into a feature. |
+| **Conference: transcribe first** | M | Audio is attached to the prompt today; a transcript pass would give better reports and something searchable. |
+| Pull-to-refresh · widget · archive search · Markdown export | S–M | Small, independent. |
+
+### LinkedIn
+
+Researched against LinkedIn's current API docs. Feasible, with one catch.
+
+- **No approval gate.** `w_member_social` ("post on behalf of an authenticated member") is an
+  **Open Permission**, enabled self-service via the *Share on LinkedIn* product. Nothing like the
+  `media.write` problem above.
+- **But tokens last 60 days and probably cannot be refreshed** — `expires_in: 5184000`, and
+  programmatic refresh tokens are *"available for a limited set of partners"*. Plan on
+  re-authorising by hand every 60 days, and on Settings showing the expiry date before it lapses.
+- **It needs its own prompt.** LinkedIn allows ~3000 characters, the hook is the first ~200 before
+  the "…see more" fold, and line breaks are structural. The grounding rules — dominant story only,
+  no editorialising, no promoting incidental mentions — stay identical.
+
+Suggested phasing:
+
+| Phase | Scope | Size |
+|---|---|---|
+| **0** | `ACTION_SEND` to the LinkedIn app + a LinkedIn prompt variant | S |
+| **1** | Developer app, OAuth, text-only posting via `POST /rest/posts` | M |
+| **2** | Images (`initializeUpload` → `PUT` → reference the URN) | M |
+| **3** | Token expiry surfaced in Settings, warning at T-7 days | S |
+
+Phase 0 needs no developer app, no LinkedIn Page, no tokens and no 60-day cliff. It may well be
+enough on its own.
+
+### Deliberately out of scope
+
+- **A DI framework, Navigation-Compose, or a repository layer.** The flat structure is a decision,
+  not an oversight.
+- **Dark mode.**
+- **Crash reporting and analytics.** It would be the first thing leaving the device that the user
+  did not initiate, which contradicts [Privacy](#privacy).
 
 ---
 
