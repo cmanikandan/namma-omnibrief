@@ -470,51 +470,86 @@ text only, which is how the app behaved before attachments existed.
 
 #### Re-authorising with `media.write`
 
-Regenerating the tokens from the Developer Portal's *Keys and tokens* tab is **not** enough on its
-own, and it gives you no way to see which scopes you ended up with. Use the helper script instead —
-it asks for the scopes explicitly and prints back what the server actually granted.
+> [!IMPORTANT]
+> **The Developer Portal cannot grant this scope.** Its *Generate OAuth 2.0 Access Token* dialog
+> shows a fixed checkbox list — `tweet.*`, `users.read`, `dm.*`, `like.*`, `follows.*`, `list.*` and
+> so on — and `media.write` is simply not on it. No amount of regenerating tokens there will help.
+> The scope exists and works; it is only reachable through the authorization URL, which is what the
+> helper script sends.
 
-**1. Configure the App (one time).** [developer.x.com](https://developer.x.com/) → your Project →
-your App → **User authentication settings** → *Edit*:
+**1. Check the App settings.** [developer.x.com](https://developer.x.com/) → your Project → your App
+→ **User authentication settings**:
 
 | Field | Value |
 |---|---|
-| App permissions | **Read and write** |
-| Type of App | **Web App, Automated App or Bot** (this is the confidential-client type the app expects) |
-| Callback URI / Redirect URL | `http://127.0.0.1:8765/callback` |
-| Website URL | anything valid, e.g. your GitHub profile |
+| App permissions | **Read and write** (or *Read and write and Direct message*) |
+| Type of App | **Web App, Automated App or Bot** — confidential client |
+| Callback URI / Redirect URL | note down whatever is registered; you will pass it to the script |
 
-The callback is matched **exactly** — a trailing slash or `localhost` instead of `127.0.0.1` will be
-rejected. Save, then copy the **Client ID** and **Client Secret** from *Keys and tokens*.
+You do **not** need to add a new callback. Use the one that is already there — the script can work
+with any registered URL. Only add `http://127.0.0.1:8765/callback` if you want the fully automatic
+mode, and be aware X may refuse a plain-`http` callback on a confidential client.
 
-**2. Run the helper.**
+Copy the **Client ID** and **Client Secret** from *Keys and tokens*.
+
+**2. Run the helper**, pointing it at your registered callback:
 
 ```bash
+# using a callback you already have registered
+python3 tools/x_oauth_setup.py --redirect-uri https://github.com/your-username
+
+# or, if you registered the loopback, just:
 python3 tools/x_oauth_setup.py
 ```
 
-It prompts for the Client ID and the Client Secret (hidden — never passed as an argument, so it does
-not land in your shell history), generates a PKCE `S256` pair, opens the X authorisation page, and
-listens once on `127.0.0.1:8765` for the redirect. Approve the request in the browser.
+It prompts for the Client ID and Client Secret (hidden, never an argument), builds a PKCE `S256`
+challenge and opens the consent screen.
 
-**3. Check the output.** The script prints the access token, the refresh token, and — the point of
-the exercise — the **granted scope list**, then states plainly whether `media.write` is in it:
+**3. Confirm the scope on the consent screen.** Before approving, read the permission list. You are
+looking for:
+
+> ✎ **Upload media like photos and videos for you.**
+
+That line *is* `media.write`. If it isn't there, stop — nothing downstream will fix it.
+
+Tick **I trust this app** (X greys out the Authorize button until you do; it appears because your
+callback domain isn't one X can verify), then **Authorize app**.
+
+**4. Hand the code back.** With the loopback callback the script catches it itself. With a hosted
+callback your browser lands on that page with `?code=…` in the address bar — copy the **entire URL**
+and paste it at the prompt.
+
+> [!CAUTION]
+> Authorization codes expire in about **30 seconds**. Have the terminal ready before you click
+> Authorize. If you get `Value passed for the authorization code was invalid`, the code just went
+> stale — re-run the script. The second time through X usually skips the consent screen and
+> redirects immediately, because you've already approved.
+
+**5. Verify.** The script prints what the server actually granted:
 
 ```
-Granted scopes: tweet.read tweet.write users.read offline.access media.write
+Granted scopes: offline.access tweet.write media.write users.read tweet.read
 
 media.write IS present. Photo uploads will work.
 ```
 
-If it says `media.write is MISSING`, the App permissions are still not **Read and write**; fix that
-and re-run.
-
-**4. Paste into the app.** Settings → *OAuth 2.0 User Context Keys* → **Access Token** and **Refresh
+**6. Paste into the app.** Settings → *OAuth 2.0 User Context Keys* → **Access Token** and **Refresh
 Token** → Save → tap **Test Connection & Refresh Token**.
 
-The script writes nothing to disk. The tokens are secrets — clear your terminal scrollback
-afterwards. From here on the app renews the access token itself; each renewal rotates the refresh
-token and stores the new one.
+The script writes nothing to disk. Clear your terminal scrollback afterwards. From here the app
+renews the access token itself, rotating the refresh token on each renewal.
+
+**Confirming it really worked**, if you want proof beyond the scope string — this uploads an image
+without posting anything (unattached media expires after 24 hours):
+
+```bash
+curl -s -w "\nHTTP %{http_code}\n" -X POST "https://api.x.com/2/media/upload" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -F "media=@some-photo.jpg" -F "media_category=tweet_image"
+```
+
+`HTTP 200` with a `data.id` means the scope is live. `HTTP 403` with a bare
+`{"title":"Forbidden","status":403}` means it is still missing.
 
 ### Getting the keys
 

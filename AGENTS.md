@@ -307,21 +307,58 @@ naming `media.write` and pointing at the Settings escape hatch. Keep that transl
 ### Re-authorising: `tools/x_oauth_setup.py`
 
 A standalone stdlib script (no third-party deps) that runs the Authorization Code + PKCE `S256` flow
-against `https://x.com/i/oauth2/authorize`, catches the redirect on a one-shot local server at
-`http://127.0.0.1:8765/callback`, and exchanges the code at `https://api.x.com/2/oauth2/token`.
+against `https://x.com/i/oauth2/authorize` and exchanges the code at
+`https://api.x.com/2/oauth2/token`. It takes `--redirect-uri` and picks its capture mode from it: a
+one-shot local server for a loopback URL, otherwise a paste-the-redirected-URL prompt.
 
-Why it exists rather than "regenerate the tokens in the Developer Portal": the Portal button grants
-whatever the App's configured permissions allow and **shows you nothing about the resulting scopes**.
-The script requests the five scopes explicitly and then **prints the `scope` the server returned**,
-asserting `media.write` is in it. That printout is the only introspection X offers.
+**Status: executed and verified end to end on 2026-09-14.** It produced a token whose granted scope
+string was `offline.access tweet.write media.write users.read tweet.read`, and
+`POST /2/media/upload` with that token returned **HTTP 200** and a real media id for the same image
+that previously 403'd.
 
+Why it exists rather than "regenerate the tokens in the Developer Portal":
+
+> **The Portal's *Generate OAuth 2.0 Access Token* dialog cannot grant `media.write`.** Its checkbox
+> list is hardcoded and does not contain the scope at all — it offers only `tweet.*`, `users.read`,
+> `dm.*`, `follows.*`, `like.*`, `bookmark.*`, `space.read`, `list.*`, `mute.*`, `block.*` and an
+> `offline.access` toggle. That list is an exact match for the scopes the user's broken token had,
+> which is how the whole defect arose. Scopes are granted by the **authorize endpoint**, which
+> accepts an arbitrary `scope` parameter.
+
+Three traps, all hit for real during the verified run:
+
+1. **The redirect URI must already be registered.** The script's default loopback
+   `http://127.0.0.1:8765/callback` was *not* on the App, and X answered with a generic
+   *"Something went wrong — You weren't able to give access to the App."* That page is identical for
+   a bad client id, an unregistered redirect, an invalid scope and an incomplete app config, so it
+   tells you nothing. **Diagnose by reading the App's registered callback, not by guessing.** The
+   working run used the App's existing `https://github.com/cmanikandan` and captured the code from
+   the address bar.
+2. **Authorization codes expire in ~30 seconds.** Reading the redirect URL out of the browser,
+   putting it in a chat turn and then exchanging it is too slow; the exchange returns
+   `{"error":"invalid_request","error_description":"Value passed for the authorization code was
+   invalid."}`, which reads like a broken flow and is not. Keep the capture and the exchange in one
+   process.
+3. **The consent screen gates Authorize behind an "I trust this app" checkbox** when the callback
+   domain is unverified. The button is greyed out until it is ticked.
+
+Useful confirmations from that consent screen: the permission line that corresponds to `media.write`
+reads **"Upload media like photos and videos for you."** If it is absent, the scope was not offered.
+
+Other properties:
 - It **shells out to `curl`**, not `urllib` — Python on this Mac fails the token call with
   `CERTIFICATE_VERIFY_FAILED`, which looks like an auth error and is not.
-- The client secret is read with `getpass`, never from an argument or a file. Nothing is written to
-  disk; the tokens are printed for the user to paste into Settings.
-- The redirect URI is **exact-matched** by X. It must be registered on the App verbatim.
-- **Status: written, never executed.** Running it mints live tokens on the user's account, so it
-  needs the user present. Do not claim it is verified.
+- The client secret is read with `getpass`, or from `X_CLIENT_ID`/`X_CLIENT_SECRET` when there is no
+  tty (for harness use). Nothing is written to disk.
+
+Non-destructive verification, preferred over a live post (see the testing policy below) — unattached
+media expires in 24 h and never reaches the timeline:
+
+```bash
+curl -s -w "\nHTTP %{http_code}\n" -X POST "https://api.x.com/2/media/upload" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -F "media=@photo.jpg" -F "media_category=tweet_image"
+```
 
 The procedure is documented for the user in README → *Re-authorising with `media.write`*.
 
@@ -334,6 +371,23 @@ Captured from a real device, not an emulator, at the default 1.15× text size, t
 **Check every capture for credentials before committing.** `05-settings.png` is deliberately scrolled
 to the "Bulk Import All Keys" card, whose examples are placeholders (`GEMINI_API_KEY=AIzaSy…`); the
 key fields further down the screen are not in frame. If you re-shoot Settings, keep it that way.
+
+### Writing tokens onto the device without typing them
+
+The debug build is `run-as`-able, so SharedPreferences can be edited directly. This is far quicker
+than driving the Settings text fields with `adb shell input text`:
+
+```bash
+P=com.aistudio.omnibrief.kypzmr; X=shared_prefs/omnibrief_settings.xml
+adb shell am force-stop $P            # or the app overwrites your edit on exit
+adb shell "run-as $P cat $X" > prefs.xml
+#  ... edit x_access_token / x_refresh_token / x_token_expires_at (epoch ms) ...
+adb shell "run-as $P sh -c 'cat > $X'" < prefs.xml
+adb shell am start -n $P/com.example.MainActivity
+```
+
+`x_token_expires_at` is a `<long>` in **epoch milliseconds**; set it to issue time + `expires_in`.
+`x_auth_method` must be `OAUTH2_USER`.
 
 ### Image attachment
 
