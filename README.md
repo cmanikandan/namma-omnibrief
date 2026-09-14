@@ -22,6 +22,7 @@ Bengaluru identity.
 
 - [Features](#features)
 - [Screenshots](#screenshots)
+- [Built with Google Antigravity](#built-with-google-antigravity)
 - [Getting started with Android Studio](#getting-started-with-android-studio)
 - [Building from the command line](#building-from-the-command-line)
 - [Adding your keys](#adding-your-keys)
@@ -123,6 +124,67 @@ Captured on a Pixel 10 (1080 × 2424, Android 17) running the debug build, at th
 |---|---|---|
 | ![Recent briefings archive](docs/screenshots/04-archive.png) | ![Settings](docs/screenshots/05-settings.png) | ![Text size options](docs/screenshots/06-text-size.png) |
 | The last 10 briefs, stored locally in Room with FIFO rollover. | Keys, model, and behaviour toggles — all on-device. | Five steps, each previewing itself at its own scale. |
+
+---
+
+## Built with Google Antigravity
+
+This app was written with **[Google Antigravity](https://antigravity.google/)** — Google's agent-first
+development platform. Effectively all of the Kotlin, the Gradle configuration, the tests and this
+README were produced by an agent working inside Antigravity, driven by plain-English instructions and
+reviewed turn by turn.
+
+That includes the parts that are not code: photographing an article and watching the draft come back,
+pushing OAuth tokens onto the phone over `adb`, taking the screenshots above, and running the live
+end-to-end post to X.
+
+### What the platform does
+
+| Capability | What it meant here |
+|---|---|
+| **Agent-first, not autocomplete** | You describe an outcome — "add multiple images, cap at 10, post them one by one" — and the agent plans it, edits across files, builds and reports back. |
+| **Editor + terminal + browser in one loop** | The same agent edits Kotlin, runs `./gradlew`, drives `adb` against a real Pixel, and opens a browser for the X OAuth consent screen. |
+| **Artifacts instead of raw logs** | Task lists, plans and verification walkthroughs are written out as documents you can read and correct, rather than a scrolling transcript. |
+| **Subagents in parallel** | Independent work — research, review, a second opinion on a design — can be farmed out and collected. |
+| **Project rules it actually reads** | [AGENTS.md](AGENTS.md) is loaded automatically, so the build quirks and the secrets policy are honoured without restating them each session. |
+| **Powered by Gemini 3** | The same family of models the app itself calls for drafting. |
+| **Familiar shell** | A VS Code–style editor, so keybindings, the terminal and the file tree behave the way you expect. |
+
+> [!NOTE]
+> Free to download for macOS, Windows and Linux at
+> [antigravity.google](https://antigravity.google/). Usage limits and model availability change —
+> check the site for what is current.
+
+### Using it instead of Android Studio
+
+You can develop this app entirely in Antigravity and never open Studio. Everything the project needs
+is command-line reachable:
+
+```bash
+export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+
+./gradlew :app:assembleDebug        # build
+./gradlew :app:testDebugUnitTest    # 42 unit tests
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb shell am start -n com.aistudio.omnibrief.kypzmr/com.example.MainActivity
+```
+
+See [Building from the command line](#building-from-the-command-line) for the full detail.
+
+**What you still need from Android Studio:** the **Android SDK** and a **JDK**. The `JAVA_HOME` above
+points into Studio's bundled JDK precisely because that is the easiest way to get one. If you would
+rather not install Studio at all, install the
+[command-line tools](https://developer.android.com/studio#command-line-tools-only) plus any JDK 17+
+and point `local.properties` at that SDK instead.
+
+**What Studio still does better**, and why this README keeps its Studio walkthrough:
+
+- Device mirroring, the AVD manager and Logcat's filtering UI.
+- The Layout Inspector and Compose previews.
+- Profilers, APK Analyzer and the Play signing/upload wizards.
+
+A practical split: let the agent write, build and test in Antigravity; open Studio when you need to
+*look* at something — a running layout, a memory trace, a device screen.
 
 ---
 
@@ -452,6 +514,26 @@ post attempt returns `401`.
 If you'd rather not wire up OAuth at all, every draft has an **Open in X app** action that hands the
 composed text to the official X composer, where you tap Post yourself.
 
+### Do you have to keep renewing the tokens?
+
+**No — not routinely.** Once OAuth 2.0 is set up, the app maintains itself:
+
+| Credential | Lifetime | Who renews it |
+|---|---|---|
+| Access token | 2 hours | The app, automatically — 5 minutes before expiry, and again if a post returns `401` |
+| Refresh token | ~6 months, and **rotates every time it is used** | The app saves the new value back into Settings |
+| Client ID / Client Secret | Until you regenerate them in the Developer Portal | You, and only if you regenerate them |
+
+You only need to re-authorise (§*Re-authorising with `media.write`*) if:
+
+- the app goes unused for roughly six months, so the refresh token lapses;
+- you used the same refresh token somewhere else — rotation invalidates the copy the app holds;
+- you regenerated the Client Secret in the Developer Portal; or
+- you revoked the app under **X → Settings → Security and account access → Apps and sessions**.
+
+If a post ever fails with a token error, the quickest check is Settings →
+**Test Connection & Refresh Token**.
+
 ### Attaching the photo: you need the `media.write` scope
 
 The app uploads the photographed article and attaches it to the post. **This needs a scope that
@@ -466,6 +548,11 @@ tweet.read  tweet.write  users.read  offline.access  media.write
 
 **Workaround in the meantime:** Settings → turn off **Attach photo to post**. Posts then go out as
 text only, which is how the app behaved before attachments existed.
+
+> [!NOTE]
+> Verified end to end on 14 September 2026: a photographed article was drafted, approved and
+> published from the app, and the resulting post carried the image at 1600 px — the same cap the
+> app applies before upload.
 
 #### Re-authorising with `media.write`
 

@@ -193,7 +193,7 @@ fun SettingsScreen(
                 ) {
                     Text(
                         text = "GEMINI_API_KEY=AIzaSy...\n" +
-                            "X_CLIENT_ID=cXo1...\n" +
+                            "X_CLIENT_ID=Abc1...\n" +
                             "X_CLIENT_SECRET=...\n" +
                             "X_ACCESS_TOKEN=...\n" +
                             "X_REFRESH_TOKEN=...\n" +
@@ -714,7 +714,7 @@ fun SettingsScreen(
                         value = xClientIdInput,
                         onValueChange = { xClientIdInput = it },
                         label = { Text("Client ID") },
-                        placeholder = { Text("Enter Client ID (e.g. cXo1...)") },
+                        placeholder = { Text("Enter Client ID (e.g. Abc1...)") },
                         singleLine = true,
                         trailingIcon = {
                             KeyFieldActions(

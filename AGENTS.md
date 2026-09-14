@@ -417,11 +417,60 @@ regex is anchored and refuses to span a newline so a bracketed aside in the body
 `ArchivedDraftTest` covers it; mutation-tested — removing the strip fails 3 of its 6 cases.
 
 
+### Token lifecycle — normally nothing to do by hand
+
+| Token | Lifetime | Who renews it |
+|---|---|---|
+| Access token | 2 h (`expires_in: 7200`) | The app, automatically |
+| Refresh token | ~6 months, **rotates on every use** | The app writes the new one back |
+| Client ID / Secret | until regenerated in the Portal | User, only if they regenerate |
+
+Two independent renewal paths, both in `postTweet`:
+
+1. **Proactive.** `needsRefresh(token, expiresAt, now)` refreshes when within
+   `ACCESS_TOKEN_EXPIRY_SKEW_MS` (5 min) of expiry. It is pure and unit-tested (`XTokenRefreshTest`).
+   `expiresAt <= 0` means "unknown" and deliberately returns **false** — refreshing a hand-pasted
+   token for no reason would burn the single-use refresh token.
+2. **Reactive.** A `401` on the post triggers one refresh-and-retry, then a message that explicitly
+   explains refresh-token rotation, because X's own text ("Value passed for the token was invalid")
+   does not.
+
+Both call back into `AppPreferences.saveRefreshedTokens`, which persists the new access token, the
+rotated refresh token and a freshly computed `x_token_expires_at`.
+
+**Known gap:** saving tokens through the Settings screen sets `xAccessToken`/`xRefreshToken` but
+**does not touch `x_token_expires_at`**, so a hand-pasted token inherits a stale expiry. If the stale
+value is in the past the next post refreshes immediately (harmless, costs one rotation); if it is in
+the future the proactive path is skipped and the `401` retry covers it. Worth fixing by setting
+`xTokenExpiresAt = 0L` on manual save.
+
+Re-authorisation is only needed when: the refresh token goes unused for ~6 months, a stale copy is
+used elsewhere and rotation invalidates the saved one, the client secret is regenerated, or the user
+revokes app access.
+
 ### Testing policy for X
 
 **Do not run a live post test without explicit user consent.** It publishes a real tweet to their
-account and rotates their stored refresh token. Verify code paths by reading, and direct the user to
-Settings → *Test Connection & Refresh Token* for on-device verification.
+account and rotates their stored refresh token. Prefer the non-destructive media upload above.
+Settings → *Test Connection & Refresh Token* is the on-device equivalent.
+
+**One consented end-to-end run has been completed (2026-09-14)** and is the proof that image
+attachment works through the app, not just through curl:
+
+| Stage | Result |
+|---|---|
+| Gallery pick → `1 / 10 images` | pass |
+| Gemini analysis | source auto-detected as *The Times of India*, `mainTopic` surfaced |
+| Approve & Post | "Posted 1 of 1 to X successfully", badge `PENDING` → `POSTED` |
+| Tweet | id `2099467500891386088`, 299 chars |
+| **Image attached** | `attachments.media_keys: ["3_2099467496747343872"]`, `type: photo`, **1600×676** |
+| Room archive | Archive tab → (1) |
+
+The **1600 px** width is the useful detail: it matches `MAX_IMAGE_DIMENSION_PX`, proving the bytes
+went through `XApiService.readUriAsJpegBytes` rather than some other path.
+
+Not covered by that run: the **standard (non-Blue) character limit** path. The account is X Blue, so
+`X_PREMIUM_CHAR_LIMIT` applied and the pre-flight guard in `approveAndPostToX()` was never triggered.
 
 ---
 
