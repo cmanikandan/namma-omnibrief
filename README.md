@@ -95,9 +95,11 @@ Watch the status bar at the bottom. The first sync downloads a few hundred MB an
 minutes. Wait for **"Gradle sync finished"** before doing anything else.
 
 > [!NOTE]
-> If Studio offers to upgrade the Android Gradle Plugin, **decline for now.** The project is pinned
-> to AGP 9.1.1 and an unattended upgrade is a common way to break a working build. If Studio says
-> your version is too *old* to open the project, update Android Studio itself instead.
+> Studio may offer to upgrade the Android Gradle Plugin. That is safe to accept, but **verify it
+> before you keep it** — run `./gradlew :app:assembleDebug :app:testDebugUnitTest` and check both
+> pass. An unattended AGP upgrade is a common way to break a working build, so treat a green test
+> run as the condition for keeping it. If Studio instead says your version is too *old* to open the
+> project, update Android Studio itself.
 
 ### Step 3 — Pick something to run the app on
 

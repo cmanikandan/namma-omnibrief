@@ -48,7 +48,7 @@ export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 | Component | Version |
 |---|---|
 | Gradle wrapper | 9.6.0 |
-| Android Gradle Plugin | 9.1.1 |
+| Android Gradle Plugin | 9.4.0 |
 | Kotlin | 2.2.10 |
 | compileSdk / targetSdk | 36.1 / 36 |
 | minSdk | 24 |
@@ -70,6 +70,13 @@ export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
   falls back to unsigned with a warning). **Do not revert this to `getByName(...)`.**
 - `libandroidx.graphics.path.so` / `libdatastore_shared_counter.so` "unable to strip" warnings are
   benign.
+- **Android Studio rewrites tracked files.** Opening the project bumped AGP to 9.4.0, KSP to 2.3.6
+  and added `org.gradle.tooling.parallel=true`. That upgrade was verified (`assembleDebug` plus
+  8/8 unit tests) and kept. Policy is **verify then keep**, not "always decline" — but never commit
+  an IDE-initiated version bump without running the build and tests first.
+- **IDE output is git-ignored**, including all of `.idea/` and `gradle/gradle-daemon-jvm.properties`.
+  The latter pins a JDK 25 toolchain and would make Gradle try to *download* a JDK on another
+  machine, which conflicts with the `JAVA_HOME` instruction above. Do not commit either.
 
 ---
 
