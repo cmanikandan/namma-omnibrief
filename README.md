@@ -34,6 +34,7 @@ Bengaluru identity.
 - [Roadmap](#roadmap)
 - [Troubleshooting](#troubleshooting)
 - [Privacy](#privacy)
+- [License](#license)
 
 ---
 
@@ -888,7 +889,6 @@ An honest backlog, from a survey of the current code. Sizes: **S** ≈ an hour, 
 
 | Item | Size |
 |---|---|
-| LICENSE (MIT or Apache-2.0 — without one, it is "all rights reserved") | S |
 | GitHub Actions: `assembleDebug` + unit tests on push | S |
 | Secret scanning with **push protection**, and Dependabot | S |
 | Enable R8 for release and fix the keep rules while there is time to test | M |
@@ -978,3 +978,14 @@ Problems this project has actually hit:
 This is a personal app. Briefs are stored only on the device, capped at the 10 most recent. Images
 and text are sent to the Gemini API for analysis and, when you approve a post, to X. Nothing else
 leaves the device.
+
+---
+
+## License
+
+[MIT](LICENSE). Use it, fork it, ship it, sell it — keep the copyright notice, and expect no
+warranty.
+
+The API keys are yours, not mine: nothing in this repository will work until you supply your own
+Gemini key and, if you want to publish, your own X credentials. See
+[Adding your keys](#adding-your-keys).
