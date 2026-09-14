@@ -16,12 +16,14 @@ class AppPreferences(context: Context) {
         private const val KEY_X_CLIENT_SECRET = "x_client_secret"
         private const val KEY_X_ACCESS_TOKEN = "x_access_token"
         private const val KEY_X_REFRESH_TOKEN = "x_refresh_token"
+        private const val KEY_X_TOKEN_EXPIRES_AT = "x_token_expires_at"
         private const val KEY_X_AUTH_METHOD = "x_auth_method"
         private const val KEY_IS_X_BLUE = "is_x_blue"
         private const val KEY_DEFAULT_SOURCE = "default_source"
         private const val KEY_IS_LIGHT_THEME = "is_light_theme"
         private const val KEY_FONT_SCALE = "font_scale"
         private const val KEY_HEADLINE_SORT = "headline_sort"
+        private const val KEY_ATTACH_IMAGE = "attach_image_to_post"
 
         const val DEFAULT_MODEL = "gemini-3.8-flash"
 
@@ -96,13 +98,50 @@ class AppPreferences(context: Context) {
         get() = prefs.getString(KEY_X_CLIENT_SECRET, "") ?: ""
         set(value) = prefs.edit().putString(KEY_X_CLIENT_SECRET, value.trim()).apply()
 
+    /**
+     * The X access token.
+     *
+     * Setting this clears [xTokenExpiresAt], because a hand-pasted token carries no expiry
+     * information and keeping the previous one would have the app believe a brand-new token is
+     * already stale (or worse, that an old one is still good). Use [saveRefreshedTokens] when the
+     * value came from a refresh and the lifetime *is* known.
+     */
     var xAccessToken: String
         get() = prefs.getString(KEY_X_ACCESS_TOKEN, "") ?: ""
-        set(value) = prefs.edit().putString(KEY_X_ACCESS_TOKEN, value.trim()).apply()
+        set(value) {
+            prefs.edit().putString(KEY_X_ACCESS_TOKEN, value.trim()).apply()
+            xTokenExpiresAt = 0L
+        }
 
     var xRefreshToken: String
         get() = prefs.getString(KEY_X_REFRESH_TOKEN, "") ?: ""
         set(value) = prefs.edit().putString(KEY_X_REFRESH_TOKEN, value.trim()).apply()
+
+    /**
+     * Epoch millis at which [xAccessToken] stops being valid, or **0 when unknown**.
+     *
+     * X access tokens last about two hours. Storing the deadline lets the app renew one *before*
+     * using it rather than discovering the problem as a failed post. 0 means "no idea" — the app
+     * then just tries the token and falls back to refreshing on a 401.
+     */
+    var xTokenExpiresAt: Long
+        get() = prefs.getLong(KEY_X_TOKEN_EXPIRES_AT, 0L)
+        set(value) = prefs.edit().putLong(KEY_X_TOKEN_EXPIRES_AT, value).apply()
+
+    /**
+     * Persists the result of a successful token refresh.
+     *
+     * Writes all three values in a fixed order so the expiry is not wiped by [xAccessToken]'s
+     * setter. **The refresh token must be stored too**: X rotates it on every refresh and
+     * invalidates the previous one, so dropping the new value locks the app out until the user
+     * re-authorises by hand.
+     */
+    fun saveRefreshedTokens(accessToken: String, refreshToken: String, expiresInSeconds: Long) {
+        xAccessToken = accessToken
+        if (refreshToken.isNotBlank()) xRefreshToken = refreshToken
+        xTokenExpiresAt =
+            if (expiresInSeconds > 0) System.currentTimeMillis() + expiresInSeconds * 1000 else 0L
+    }
 
     var xAuthMethod: String
         get() = prefs.getString(KEY_X_AUTH_METHOD, "OAUTH2_USER") ?: "OAUTH2_USER"
@@ -120,7 +159,12 @@ class AppPreferences(context: Context) {
         }
         set(value) = prefs.edit().putString(KEY_X_BEARER_TOKEN, value.trim()).apply()
 
-    /** True when at least one usable X credential set is configured. */
+    /**
+     * True when at least one usable X credential set is configured.
+     *
+     * A client ID plus a refresh token is enough on its own: the app can mint an access token from
+     * those, so requiring a pasted access token as well would reject a perfectly workable setup.
+     */
     val hasXCredentials: Boolean
         get() = if (xAuthMethod == "OAUTH2_USER") {
             xAccessToken.isNotBlank() || (xClientId.isNotBlank() && xRefreshToken.isNotBlank())
@@ -131,6 +175,22 @@ class AppPreferences(context: Context) {
     var isXBlue: Boolean
         get() = prefs.getBoolean(KEY_IS_X_BLUE, true)
         set(value) = prefs.edit().putBoolean(KEY_IS_X_BLUE, value).apply()
+
+    /**
+     * Whether the photographed article is uploaded and attached to the post.
+     *
+     * Defaults to on — a post about a newspaper page reads far better with the page attached, and
+     * that is what the user expects to happen.
+     *
+     * It is a setting rather than always-on because attaching requires the `media.write` OAuth
+     * scope, which `tweet.write` does not imply. An authorisation granted without it can publish
+     * text perfectly well but gets a bare 403 on upload, and re-authorising is a trip to the X
+     * Developer Portal. Turning this off is the escape hatch that keeps the app usable in the
+     * meantime, instead of the app quietly dropping the image and leaving the user to notice.
+     */
+    var attachImageToPost: Boolean
+        get() = prefs.getBoolean(KEY_ATTACH_IMAGE, true)
+        set(value) = prefs.edit().putBoolean(KEY_ATTACH_IMAGE, value).apply()
 
     var defaultSource: String
         get() = prefs.getString(KEY_DEFAULT_SOURCE, "Auto-Detect") ?: "Auto-Detect"

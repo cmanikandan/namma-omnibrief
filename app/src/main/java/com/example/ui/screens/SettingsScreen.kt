@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -119,6 +120,7 @@ fun SettingsScreen(
     var isXConnectionSuccess by remember { mutableStateOf(false) }
 
     var isXBlue by remember { mutableStateOf(prefs.isXBlue) }
+    var attachImage by remember { mutableStateOf(prefs.attachImageToPost) }
 
     var defaultSource by remember { mutableStateOf(prefs.defaultSource) }
 
@@ -582,6 +584,59 @@ fun SettingsScreen(
                     )
                 }
 
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Attach Photo Toggle
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(ObsidianCard)
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Attach photo to post",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                imageVector = Icons.Default.Image,
+                                contentDescription = null,
+                                tint = CyanAccent,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        Text(
+                            text = "Uploads the photographed article with the post. Needs the " +
+                                "'media.write' scope on your X authorisation — turn this off if " +
+                                "uploads return 403.",
+                            fontSize = 11.sp,
+                            color = TextSecondary
+                        )
+                    }
+
+                    Switch(
+                        checked = attachImage,
+                        onCheckedChange = {
+                            attachImage = it
+                            prefs.attachImageToPost = it
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = CyanAccent,
+                            uncheckedThumbColor = TextSecondary,
+                            uncheckedTrackColor = ObsidianBorder
+                        ),
+                        modifier = Modifier.testTag("attach_image_toggle_switch")
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // Auth Method Selector
@@ -919,6 +974,7 @@ fun SettingsScreen(
                 prefs.xRefreshToken = xRefreshTokenInput
                 prefs.xBearerToken = xTokenInput
                 prefs.isXBlue = isXBlue
+                prefs.attachImageToPost = attachImage
                 Toast.makeText(context, "All Settings saved successfully", Toast.LENGTH_SHORT).show()
             },
             colors = ButtonDefaults.buttonColors(

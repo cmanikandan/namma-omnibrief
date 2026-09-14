@@ -229,9 +229,11 @@ fun HistoryScreen(
                         formattedDate = dateFormatter.format(Date(item.timestamp)),
                         onLoadItem = {
                             if (item.type == "X_POST") {
-                                viewModel.activePostDraft.value = item.content
-                                viewModel.articleSource.value = item.sourceOrSpeaker
-                                viewModel.navigateTo(AppDestination.ARTICLE_TO_X)
+                                viewModel.loadArchivedDraft(
+                                    title = item.title,
+                                    content = item.content,
+                                    source = item.sourceOrSpeaker
+                                )
                             } else {
                                 viewModel.confTopic.value = item.title
                                 viewModel.navigateTo(AppDestination.CONFERENCE)

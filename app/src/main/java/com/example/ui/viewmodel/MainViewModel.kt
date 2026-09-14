@@ -317,6 +317,60 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * Resets the whole Article → X page for a fresh start.
+     *
+     * Distinct from [clearDrafts], which only empties the review queue. This also drops the source
+     * images, the pasted text and the analysis, so the user is not left with the previous
+     * article's photos silently attached to the next post.
+     *
+     * [articleSource] returns to the configured default rather than being blanked, because a blank
+     * source re-triggers the "which publication is this?" dialog on the next analysis.
+     */
+    fun clearArticleWorkspace() {
+        articleImageUris.value = emptyList()
+        articleTextInput.value = ""
+        articleAnalysisResult.value = null
+        postDrafts.value = emptyList()
+        activePostDraft.value = ""
+        articleError.value = null
+        postToXStatus.value = null
+        batchProgress.value = null
+        articleSource.value = prefs.defaultSource
+    }
+
+    /**
+     * Opens an archived brief in the composer.
+     *
+     * History rows store a batch as one string with `[Image 1] `-style labels and `---` separators
+     * (see the `saveDraftToRoom` call in [analyzeArticle]). Those markers are a storage detail; a
+     * previous version assigned the raw string straight to [activePostDraft], so the labels leaked
+     * into the composer and were published verbatim at the head of a real tweet.
+     *
+     * A multi-part brief is restored as a draft queue rather than one blob: concatenated, it would
+     * be several hundred characters and fail the length check as a single post.
+     */
+    fun loadArchivedDraft(title: String, content: String, source: String) {
+        val parts = splitArchivedDraft(content)
+        articleSource.value = source.ifBlank { prefs.defaultSource }
+        articleImageUris.value = emptyList()
+        articleError.value = null
+        postToXStatus.value = null
+        postDrafts.value = parts.mapIndexed { index, text ->
+            XPostDraftItem(
+                label = if (parts.size > 1) "Part ${index + 1}" else "Archived",
+                text = text,
+                source = source,
+                headline = title,
+                // The originals are not retained: History stores text only, and the picked image
+                // Uri would have been revoked long before the brief is reopened anyway.
+                imageUri = null
+            )
+        }
+        activePostDraft.value = parts.firstOrNull().orEmpty()
+        navigateTo(AppDestination.ARTICLE_TO_X)
+    }
+
+    /**
      * Analyses every attached image independently (one post per image, max 10) plus the pasted
      * text, so each photo produces its own reviewable draft instead of one merged post.
      */
@@ -478,9 +532,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     clientId = prefs.xClientId,
                     clientSecret = prefs.xClientSecret,
                     refreshToken = prefs.xRefreshToken,
-                    onTokenRefreshed = { newAccess, newRefresh ->
-                        prefs.xAccessToken = newAccess
-                        prefs.xRefreshToken = newRefresh
+                    accessTokenExpiresAt = prefs.xTokenExpiresAt,
+                    imageUri = if (prefs.attachImageToPost) draft.imageUri else null,
+                    appContext = context,
+                    onTokenRefreshed = { newAccess, newRefresh, expiresIn ->
+                        prefs.saveRefreshedTokens(newAccess, newRefresh, expiresIn)
                     }
                 )
 
@@ -515,8 +571,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Posts a single ad-hoc draft (used when the queue is empty and the user typed a post). */
-    private fun postSingleDraft(draft: String) {
+    /**
+     * Posts a single ad-hoc draft (used when the queue is empty and the user typed a post).
+     *
+     * [imageUri] defaults to the first attached photo: if the user picked an image and wrote their
+     * own text rather than running the analysis, they still expect the picture to go with it.
+     */
+    private fun postSingleDraft(draft: String, imageUri: Uri? = articleImageUris.value.firstOrNull()) {
         if (draft.isBlank()) return
 
         val token = if (prefs.xAuthMethod == "OAUTH2_USER") prefs.xAccessToken else prefs.xBearerToken
@@ -536,9 +597,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 clientId = prefs.xClientId,
                 clientSecret = prefs.xClientSecret,
                 refreshToken = prefs.xRefreshToken,
-                onTokenRefreshed = { newAccess, newRefresh ->
-                    prefs.xAccessToken = newAccess
-                    prefs.xRefreshToken = newRefresh
+                accessTokenExpiresAt = prefs.xTokenExpiresAt,
+                imageUri = if (prefs.attachImageToPost) imageUri else null,
+                appContext = context,
+                onTokenRefreshed = { newAccess, newRefresh, expiresIn ->
+                    prefs.saveRefreshedTokens(newAccess, newRefresh, expiresIn)
                 }
             )
             isPostingToX.value = false
@@ -560,6 +623,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         postDrafts.value = postDrafts.value.map { if (it.id == id) transform(it) else it }
     }
 
+    /**
+     * Exchanges the stored refresh token for a fresh access token and saves the result.
+     *
+     * This is also the app's own proof that OAuth is wired up correctly, so the message names the
+     * expiry the server returned rather than just saying "connected". Note that a successful call
+     * **rotates** the refresh token: the copy the user pasted is dead afterwards, and the new one
+     * is what has been saved.
+     */
     fun testAndRefreshXConnection(onResult: (Boolean, String) -> Unit) {
         if (prefs.xClientId.isBlank() || prefs.xRefreshToken.isBlank()) {
             onResult(false, "Enter Client ID, Client Secret and Refresh Token first.")
@@ -568,9 +639,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val res = xApiService.refreshOAuth2Token(prefs.xClientId, prefs.xClientSecret, prefs.xRefreshToken)
             if (res.success) {
-                prefs.xAccessToken = res.accessToken
-                prefs.xRefreshToken = res.refreshToken
-                onResult(true, "OAuth 2.0 connected. Access token valid for ${res.expiresIn / 60} mins; tokens refreshed and saved.")
+                prefs.saveRefreshedTokens(res.accessToken, res.refreshToken, res.expiresIn)
+                val until = SimpleDateFormat("h:mm a", Locale.getDefault())
+                    .format(Date(prefs.xTokenExpiresAt))
+                onResult(
+                    true,
+                    "OAuth 2.0 connected. New access token valid for ${res.expiresIn / 60} mins " +
+                        "(until $until). Rotated refresh token saved — the app will renew itself " +
+                        "from here on."
+                )
             } else {
                 onResult(false, res.error ?: "Failed to refresh token")
             }
@@ -1065,5 +1142,26 @@ Bengaluru has formally inaugurated its Sovereign AI & Deep Tech roadmap at the B
          * current, but bouncing out to a browser and straight back should not re-request.
          */
         private const val HEADLINE_STALE_AFTER_MS = 15L * 60L * 1000L // 15 minutes
+
+        /** Separator written between drafts of one batch by `saveDraftToRoom`. */
+        private const val ARCHIVE_SEPARATOR = "\n\n---\n\n"
+
+        /**
+         * Leading `[Image 1] ` / `[Pasted text] ` label that `saveDraftToRoom` prefixes to each
+         * part so a stored batch stays readable. Anchored, and refuses to span a newline, so a
+         * legitimate bracketed phrase later in the post is untouched.
+         */
+        private val ARCHIVE_LABEL = Regex("""^\[[^\]\n]{1,40}]\s*""")
+
+        /**
+         * Splits a stored History entry back into individual post texts, stripping the labels.
+         *
+         * Pure, so the stripping can be tested without a ViewModel — this leaked into a live tweet
+         * once and is worth a regression test.
+         */
+        fun splitArchivedDraft(content: String): List<String> =
+            content.split(ARCHIVE_SEPARATOR)
+                .map { it.replace(ARCHIVE_LABEL, "").trim() }
+                .filter { it.isNotBlank() }
     }
 }

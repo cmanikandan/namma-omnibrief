@@ -268,6 +268,7 @@ a ViewModel or a network (`HeadlineSortTest`). `MainViewModel.sortedHeadlines` j
 |---|---|---|---|
 | App-only **Bearer** token | Yes | **No** | `POST /2/tweets` → `403 Unsupported Authentication` |
 | **OAuth 2.0 User Context** (`tweet.write`) | Yes | **Yes** | The only way to publish |
+| …the same token **without `media.write`** | Yes | Text only | Image upload → bare `403`. See below. |
 
 This was discovered the hard way. If a change makes posting "work" with a bearer token, it is wrong.
 
@@ -278,6 +279,58 @@ This was discovered the hard way. If a change makes posting "work" with a bearer
   automated end-to-end posting tests are avoided.
 - Fallback path: `XApiService.launchDirectXComposer()` opens `twitter.com/intent/tweet` so the user
   can post manually without configuring OAuth at all.
+
+### OAuth scopes — `media.write` is separate and is not implied
+
+The app needs all of:
+
+```
+tweet.read tweet.write users.read offline.access media.write
+```
+
+`tweet.write` alone publishes text perfectly well but **cannot upload an image**. This cost a
+debugging cycle: the user's live tweet went out text-only with no error anywhere in the app.
+
+How it was proven, and how to prove it again:
+
+- `POST /2/media/upload`, `POST /1.1/media/upload.json` and `POST /2/media/upload/initialize` all
+  returned **403** with a bare `{"title":"Forbidden","status":403}` — **the body never mentions
+  scopes.** Do not trust the error text to tell you what is wrong.
+- `GET /2/users/me` returned **200** with the same token, so it was not an auth failure.
+- The refresh response from `POST /2/oauth2/token` includes a **`scope`** field. That is the only
+  introspection available and it is how the missing scope was found. `refreshOAuth2Token` does not
+  currently surface it; read it with curl when diagnosing.
+
+Because the 403 is unexplained by X, `XApiService.uploadImage` **translates it** into a message
+naming `media.write` and pointing at the Settings escape hatch. Keep that translation.
+
+### Image attachment
+
+- `XApiService.uploadImage(accessToken, imageUri, context)` → `MediaUploadResult`. Single-shot
+  multipart to `POST https://api.x.com/2/media/upload`, part name `media`, plus
+  `media_category=tweet_image`. The chunked INIT/APPEND/FINALIZE flow is only needed for video.
+- The id is read from `data.id`, falling back to `media_id_string`. **Always as a string** — media
+  ids overflow a signed 64-bit int.
+- The image is re-encoded to JPEG capped at `MAX_IMAGE_DIMENSION_PX` (1600), mirroring
+  `GeminiApiService.readUriAsBase64Jpeg` so both services see the same picture.
+- Upload happens **inside `postTweet`**, after the token has been freshened and before the tweet, so
+  it always runs with a valid token.
+- **A failed upload fails the whole post.** Deliberate: silently publishing text-only is the exact
+  bug this exists to fix, and a tweet cannot be edited to add a picture afterwards. The escape hatch
+  is `AppPreferences.attachImageToPost` (Settings → *Attach photo to post*, default **on**).
+
+### `[Image N]` markers must never reach the composer
+
+`saveDraftToRoom` stores a batch as one string with `[Image 1] `-style labels and `\n\n---\n\n`
+separators. History used to assign that raw string to `activePostDraft`, so a reopened brief carried
+the label into the composer — and one was **published at the head of a real tweet**.
+
+Reopening now goes through `MainViewModel.loadArchivedDraft(title, content, source)`, which uses the
+pure `MainViewModel.splitArchivedDraft()` to split and strip, and restores a multi-part brief as a
+**draft queue** rather than one blob (concatenated it would blow the character limit). The label
+regex is anchored and refuses to span a newline so a bracketed aside in the body survives.
+`ArchivedDraftTest` covers it; mutation-tested — removing the strip fails 3 of its 6 cases.
+
 
 ### Testing policy for X
 
@@ -304,6 +357,23 @@ Implementation:
 - `approveAndPostToX()` posts the queue **sequentially with ~2s spacing**, updating per-draft status
   and refreshing the token when needed. Nothing is ever posted without explicit approval.
 - Gmail / Drive exports are batch-aware via `buildArticleBriefMarkdown()`.
+- **Each draft keeps its own `imageUri`** and that photo is attached to *its* post, so a 3-image
+  batch produces three tweets each carrying the right picture. See §6 for the upload and the
+  `media.write` requirement.
+
+### Clearing the page
+
+`clearArticleWorkspace()` resets images, pasted text, the analysis, the draft queue, the active
+draft, both status fields and the batch progress. It is **not** the same as `clearDrafts()`, which
+only empties the queue and would leave the previous article's photos silently attached to the next
+post.
+
+`articleSource` returns to `prefs.defaultSource` rather than being blanked — a blank source
+re-triggers the "which publication is this?" dialog on the next analysis.
+
+The UI control is *Start fresh* in `ArticleToXScreen` (tag `clear_article_workspace_button`), shown
+only when there is something to discard and gated behind a confirmation dialog
+(`confirm_clear_workspace_button`) because each queued draft cost a Gemini call.
 
 ---
 
@@ -381,6 +451,10 @@ export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
   setting changes. Asserting on the typography instead would have passed against the broken
   implementation, which is exactly how that bug shipped.
 - `HeadlineSortTest` — the Today ordering, via `HeadlineSort.apply()`. Pure JVM, no Robolectric.
+- `ArchivedDraftTest` — `[Image N]` marker stripping when a History brief is reopened, via the pure
+  `MainViewModel.splitArchivedDraft()`. Pure JVM. Mutation-tested: deleting the strip fails 3 of 6.
+- `XTokenRefreshTest` — the proactive-refresh policy (`XApiService.needsRefresh`) and token
+  persistence. Fake credential values only.
 - `NavBarLabelTest` — the nav labels stay one line at `MAX_FONT_SCALE`, and still grow when there is
   room.
 - `GreetingScreenshotTest` — Roborazzi snapshot of `OmniTopBar`. If it fails on a pixel diff after an

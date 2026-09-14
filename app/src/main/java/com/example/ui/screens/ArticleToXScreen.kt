@@ -42,7 +42,9 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.LocationCity
 import androidx.compose.material.icons.filled.Newspaper
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -112,6 +114,10 @@ fun ArticleToXScreen(
 
     var tempCameraPhotoUri by remember { mutableStateOf<Uri?>(null) }
 
+    // Start fresh is confirmed because it discards analysed drafts, and each of those cost a
+    // Gemini call — an accidental tap is expensive, not just annoying.
+    var showClearConfirm by remember { mutableStateOf(false) }
+
     // Camera Capture Launcher
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
@@ -163,6 +169,47 @@ fun ArticleToXScreen(
         )
     }
 
+    if (showClearConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearConfirm = false },
+            title = { Text("Start fresh?", fontWeight = FontWeight.Bold, color = TextPrimary) },
+            text = {
+                Text(
+                    "This removes the attached photos, the pasted text and every draft in the " +
+                        "queue. Posts already published to X are not affected.",
+                    fontSize = 13.sp,
+                    color = TextSecondary
+                )
+            },
+            confirmButton = {
+                Text(
+                    text = "Clear everything",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = RoseError,
+                    modifier = Modifier
+                        .clickable {
+                            viewModel.clearArticleWorkspace()
+                            showClearConfirm = false
+                        }
+                        .padding(12.dp)
+                        .testTag("confirm_clear_workspace_button")
+                )
+            },
+            dismissButton = {
+                Text(
+                    text = "Cancel",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextSecondary,
+                    modifier = Modifier
+                        .clickable { showClearConfirm = false }
+                        .padding(12.dp)
+                )
+            },
+            containerColor = ObsidianSurface
+        )
+    }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -221,6 +268,48 @@ fun ArticleToXScreen(
                         color = TextPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+
+        // "Start fresh" wipes images, pasted text and the whole draft queue in one tap. Shown only
+        // when there is something to discard, so a clean page is not cluttered by a no-op control.
+        val hasWorkspaceContent = textInput.isNotBlank() ||
+            imageUris.isNotEmpty() ||
+            postDrafts.isNotEmpty() ||
+            activeDraft.isNotBlank()
+
+        if (hasWorkspaceContent) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(ObsidianCard)
+                        .border(1.dp, ObsidianBorder, RoundedCornerShape(8.dp))
+                        .clickable { showClearConfirm = true }
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                        .testTag("clear_article_workspace_button"),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = null,
+                        tint = RoseError,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Start fresh",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = RoseError,
+                        maxLines = 1
                     )
                 }
             }

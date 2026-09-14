@@ -77,6 +77,12 @@ popularity, so a 2000-point story about an unrelated topic will not push out a r
 - **Review then publish**: nothing is posted automatically. Review and edit every draft in the
   queue, remove the ones you don't want, then **Approve & Post All** publishes them one by one with
   spacing between calls, showing per-draft status.
+- **The photo goes with the post**: each draft carries its own source image, and that image is
+  uploaded and attached to its tweet. Needs the `media.write` scope — see
+  [Attaching the photo](#attaching-the-photo-you-need-the-mediawrite-scope). Can be turned off in
+  Settings.
+- **Start fresh**: one control clears the attached photos, the pasted text and the whole draft
+  queue, so the next article starts from a clean page instead of inheriting the last one's images.
 - **X Blue long-form** supported via a toggle in Settings.
 
 ### 3. Conference Reporter
@@ -415,11 +421,13 @@ This matters, because the two token types are not interchangeable:
 |---|---|---|---|
 | **App-only Bearer token** | Yes | **No** — `POST /2/tweets` returns `403 Unsupported Authentication` | Read-only endpoints |
 | **OAuth 2.0 User Context** (`tweet.write` scope) | Yes | **Yes** | Actually publishing posts |
+| …the same token **without `media.write`** | Yes | Text only — the photo upload returns `403` | See below |
 
 So to post from inside the app you must use **OAuth 2.0 User Context**. In Settings, select the
 OAuth 2.0 protocol and fill in Client ID, Client Secret, Access Token and Refresh Token, then tap
 **Test Connection & Refresh Token** to verify and mint a fresh access token. The app refreshes the
-token automatically when a post attempt returns `401`.
+token automatically — both before a post when the stored token is close to expiring, and again if a
+post attempt returns `401`.
 
 > **Note:** refreshing rotates your refresh token. The new value is saved back into Settings
 > automatically — if you also keep the token elsewhere, update your copy.
@@ -427,12 +435,30 @@ token automatically when a post attempt returns `401`.
 If you'd rather not wire up OAuth at all, every draft has an **Open in X app** action that hands the
 composed text to the official X composer, where you tap Post yourself.
 
+### Attaching the photo: you need the `media.write` scope
+
+The app uploads the photographed article and attaches it to the post. **This needs a scope that
+`tweet.write` does not include.** Authorise with all five:
+
+```
+tweet.read  tweet.write  users.read  offline.access  media.write
+```
+
+**Symptom if it is missing:** posting text works fine, but attaching a photo fails with a bare
+`403 Forbidden` that says nothing about scopes. The app recognises this case and tells you so.
+
+**Fix:** re-authorise in the [X Developer Portal](https://developer.x.com/) with `media.write`
+ticked, then paste the new Access and Refresh tokens into Settings.
+
+**Workaround in the meantime:** Settings → turn off **Attach photo to post**. Posts then go out as
+text only, which is how the app behaved before attachments existed.
+
 ### Getting the keys
 
 - **Gemini API key**: [Google AI Studio](https://aistudio.google.com/apikey).
 - **X keys**: [X Developer Portal](https://developer.x.com/) → your project → *Keys and tokens*.
-  Enable OAuth 2.0, set the app permissions to **Read and write**, and request the `tweet.write`
-  scope.
+  Enable OAuth 2.0, set the app permissions to **Read and write**, and request the
+  `tweet.write` **and `media.write`** scopes.
 
 ---
 
