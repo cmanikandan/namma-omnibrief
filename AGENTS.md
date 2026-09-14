@@ -21,9 +21,14 @@ Plus **History** (last 10 briefs, local only) and **Settings** (keys, model, tog
 It is a *personal* app. There is no backend, no user accounts, no analytics. Everything is on-device
 except the direct HTTPS calls to Gemini and X.
 
-**Origin:** generated in Google AI Studio, then repaired by hand. Several AI Studio runs terminated
-mid-edit on "Quota exceeded", so treat any remaining oddity as possible half-finished machine output
-rather than deliberate design.
+**How it was built:** in **Google Antigravity**, agent-first — the Kotlin, the Gradle config, the
+tests and the docs were written by an agent and reviewed turn by turn, with verification done on a
+real Pixel over `adb` rather than in an emulator.
+
+Before that it started from a machine-generated scaffold whose runs repeatedly died mid-edit. Two
+consequences survive and are worth knowing: the leftover naming (package `com.example`,
+applicationId `com.aistudio.omnibrief.kypzmr`), and the possibility that any remaining oddity is
+half-finished generated output rather than deliberate design. Verify before preserving.
 
 ---
 
@@ -64,7 +69,7 @@ export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
   slower. That is normal, not a failure.
 - **`google-services.json` is absent** and that is fine — the plugin is set to
   `MissingGoogleServicesStrategy.WARN` with `googleServices.missing.passthrough=true`.
-- **Signing configs are conditional.** The AI Studio export hardcoded a `debug.keystore` and an
+- **Signing configs are conditional.** The original scaffold hardcoded a `debug.keystore` and an
   upload keystore, both git-ignored, so `assembleDebug` failed on any clean machine. They are now
   applied only if the keystore file exists (debug falls back to AGP's managed keystore, release
   falls back to unsigned with a warning). **Do not revert this to `getByName(...)`.**
@@ -104,7 +109,7 @@ app/src/main/java/com/example/
 Conventions in force:
 
 - **Package is `com.example`**, applicationId is `com.aistudio.omnibrief.kypzmr`. Leftovers from the
-  AI Studio scaffold. Renaming is a wide, risky change — leave them unless asked.
+  generated scaffold. Renaming is a wide, risky change — leave them unless asked.
 - **No Navigation-Compose.** `MainActivity` switches on an `AppDestination` enum that lives in
   `ui/components/OmniNavBar.kt`. There are **five** destinations; `HEADLINES` is first and is the
   launch destination.
@@ -125,6 +130,11 @@ Conventions in force:
 
 ## 4. Secrets policy — non-negotiable
 
+> [!CAUTION]
+> **The repository is PUBLIC** (made public 2026-09-14). Anything committed is world-readable
+> immediately and stays in history even if you delete it in a later commit. There is no "fix it
+> tomorrow" — a leaked key must be **rotated**, not just removed.
+
 **No credential may ever be hardcoded in source.** A previous revision shipped six of them; they
 were stripped, and a unit test now enforces the invariant. Do not reintroduce them, not even as a
 "temporary default".
@@ -138,13 +148,34 @@ Resolution order in `AppPreferences`:
 - `.env` holds real keys and **is git-ignored**. `.env.example` holds placeholders and is committed.
 - The OAuth 2.0 fields (client ID/secret, access/refresh token) have **no** build-time fallback at
   all — user-supplied only.
-- Before any commit, sanity check:
-  `git diff --cached | grep -iE "AQ\.|github_pat_|AAAAAAAAAAAA"` and
-  `git check-ignore -v .env local.properties`.
-- Test fixtures must use obviously fake values (`FAKE_CLIENT_ID_123`), never a prefix of a real key.
+- Before any commit, sanity check the staged diff and the ignore rules:
+  ```bash
+  git diff --cached | grep -inIE "AQ\.Ab8|AIzaSy[A-Za-z0-9_-]{10,}|github_pat_[A-Za-z0-9_]{20,}|ghp_[A-Za-z0-9]{20,}|AAAAAAAAAAAAAAAAAAAAA[A-Za-z0-9%]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY"
+  git check-ignore -v .env local.properties
+  ```
+  Note the `github_pat_` literal in this file is a **known false positive** of that grep.
+- Test fixtures **and UI examples** must use obviously fake values (`FAKE_CLIENT_ID_123`), never a
+  prefix of a real key. This is not theoretical: the Settings *Bulk Import* card shipped
+  `X_CLIENT_ID=cXo1...`, which is the first four characters of the live X client ID. Caught and
+  replaced during the pre-publication audit.
+- **Commit identity is the GitHub noreply address**, `3676043+cmanikandan@users.noreply.github.com`,
+  set in the repo-local `git config`. All 14 pre-publication commits were rewritten to it. Do not
+  commit with a corporate address.
 
 > Any credential that has appeared in a chat transcript should be treated as compromised and
 > rotated.
+
+**The audit that was run before going public** — repeat it before any future visibility change. The
+working tree alone is not enough; history is what gets published:
+
+```bash
+git log --all -p --no-color | grep -inIE "<the pattern above>"   # every commit, not just HEAD
+git log --all --pretty=format: --name-only --diff-filter=A | sort -u | \
+  grep -iE "\.env|local\.properties|\.jks|\.keystore|google-services\.json|\.pem|id_rsa"
+```
+
+Also **look at the screenshots**. `docs/screenshots/*.png` are rendered device captures; a grep will
+never see a key in them.
 
 ---
 
@@ -371,6 +402,11 @@ Captured from a real device, not an emulator, at the default 1.15× text size, t
 **Check every capture for credentials before committing.** `05-settings.png` is deliberately scrolled
 to the "Bulk Import All Keys" card, whose examples are placeholders (`GEMINI_API_KEY=AIzaSy…`); the
 key fields further down the screen are not in frame. If you re-shoot Settings, keep it that way.
+
+**`05-settings.png` is one revision stale.** It was captured before the `X_CLIENT_ID=cXo1...` example
+was replaced (§4), so the published image still shows the old string. Four characters of an OAuth
+client ID is not a secret, so it was not worth blocking publication on — but re-shoot it the next
+time the phone is unlocked and the current build is installed.
 
 ### Writing tokens onto the device without typing them
 
@@ -620,13 +656,44 @@ per test!`). To compare two configurations, render them as sibling subtrees in a
 
 ## 10. Git / publishing
 
-- Remote: `https://github.com/cmanikandan/namma-omnibrief` — **private**, default branch `main`.
-- Never write a PAT into the git remote URL permanently. If you must use one to push, scrub it
-  immediately afterwards:
+- Remote: `https://github.com/cmanikandan/namma-omnibrief` — **public** since 2026-09-14, default
+  branch `main`. See the caution at the top of §4 before committing anything.
+- Never write a PAT into the git remote URL permanently. Pass it inline per command instead, and
+  keep `.git/config` clean:
   ```bash
-  git remote set-url origin https://github.com/cmanikandan/namma-omnibrief.git
+  git push "https://<PAT>@github.com/cmanikandan/namma-omnibrief.git" main
   ```
 - Never commit `.env`, `local.properties`, `debug.keystore`, `*.jks`, `build/`, `.gradle/`.
+
+### Verifying the remote
+
+**`git fetch origin` fails silently here** — the remote URL carries no credentials, so a fetch can
+leave `origin/main` stale, which looks exactly like a failed push. `git ls-remote` with the PAT is
+the authority:
+
+```bash
+git ls-remote "https://<PAT>@github.com/cmanikandan/namma-omnibrief.git" refs/heads/main
+```
+
+### The visibility flip, for the record
+
+Done over the API, not the web UI, and verified unauthenticated afterwards:
+
+```bash
+curl -X PATCH -H "Authorization: Bearer $PAT" \
+  https://api.github.com/repos/cmanikandan/namma-omnibrief -d '{"private":false}'   # HTTP 200
+curl -s -o /dev/null -w "%{http_code}\n" https://raw.githubusercontent.com/.../main/.env   # 404
+```
+
+Commit authorship was rewritten first (corporate address → GitHub noreply) with
+`git filter-branch --env-filter` over `main`, then force-pushed. Trees were byte-identical before
+and after — confirm that with `git diff --stat <old> HEAD` producing no output, which is the only
+cheap proof the rewrite changed metadata and nothing else.
+
+> [!NOTE]
+> The pre-rewrite commits (old HEAD `514cfad`) still exist on GitHub as unreachable objects until it
+> garbage-collects. They are not discoverable by browsing, only by knowing the SHA. Worth knowing
+> before assuming a rewrite is a complete erasure.
 
 ---
 
@@ -658,7 +725,12 @@ per test!`). To compare two configurations, render them as sibling subtrees in a
     `adb shell am start -n com.aistudio.omnibrief.kypzmr/com.example.MainActivity`.
   - Nav tap targets shift when the tab count changes. Get real bounds with
     `adb shell uiautomator dump` rather than guessing coordinates.
-- X posting has never been executed end to end (see §6).
+- X posting **has** now been executed end to end, once, with consent (see §6) — text *and* image.
+  What remains unverified there: the **standard (non-Blue) character-limit** guard in
+  `approveAndPostToX()`, since the account is X Blue and the premium limit applied.
+- Saving tokens through Settings does not reset `x_token_expires_at` (§6, *Token lifecycle*). One
+  line to fix: set `xTokenExpiresAt = 0L` on manual save.
+- `docs/screenshots/05-settings.png` predates the `cXo1...` placeholder fix and wants a re-shoot.
 - Conference photo picker allows `maxItems = 30` while the article picker caps at 10 — intentional,
   but worth confirming if the conference flow is ever revisited.
 - `SettingsScreen` has an unused local `defaultSource`.
