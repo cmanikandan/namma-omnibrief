@@ -211,6 +211,26 @@ The user's explicit requirements are encoded as 8 hard rules. Do not "improve" t
 `mainTopic` is surfaced in the UI as "Main topic analysed: …" so the user can verify the model
 locked on to the right story. Keep parsing it.
 
+### Correcting the source has to rewrite the draft, not just the chip
+
+The publication name lives **inside the text the model wrote** — in the `Source:` line and usually
+mid-sentence too ("Key findings reported by …"). `setArticleSource` used to set
+`articleSource.value` and stop there, so correcting a misdetected masthead changed the chip, left
+every draft still naming the wrong paper, and published it that way.
+
+Two rules now hold:
+
+1. **Changing the source retargets existing drafts.**
+   `MainViewModel.retargetSource(text, oldSource, newSource)` is pure and unit tested
+   (`SourceRetargetTest`). It replaces every mention case-insensitively, tries the bare form without
+   a leading "The" because the model is inconsistent about it, and then rewrites any line-anchored
+   `Source:` outright — which is the only thing that works when the old name was never recorded.
+   **Drafts already `POSTED` are skipped**: the tweet is live saying something else, and editing the
+   local copy would only hide that.
+2. **Detection fills a blank; it never overrules a human.** `sourceIsUserOverride` is set by
+   `setArticleSource` and cleared by `clearArticleWorkspace`. Without it, picking a source and then
+   re-analysing put the auto-detected masthead straight back.
+
 ### Two rules that exist because live testing caught a real failure
 
 Both were found running the real API against a photographed WSJ page. Do not relax them.
@@ -432,13 +452,35 @@ adb shell am start -n $P/com.example.MainActivity
   `media_category=tweet_image`. The chunked INIT/APPEND/FINALIZE flow is only needed for video.
 - The id is read from `data.id`, falling back to `media_id_string`. **Always as a string** — media
   ids overflow a signed 64-bit int.
-- The image is re-encoded to JPEG capped at `MAX_IMAGE_DIMENSION_PX` (1600), mirroring
-  `GeminiApiService.readUriAsBase64Jpeg` so both services see the same picture.
+- The image is re-encoded by **`ImageEncoder`** (`data/remote/ImageEncoder.kt`), shared with
+  `GeminiApiService`, so both services see exactly the same picture: EXIF orientation applied,
+  longest edge capped at `MAX_IMAGE_DIMENSION_PX` (1600), JPEG quality 85. **Do not reintroduce a
+  local copy of this logic in either service** — they each had one, and the rotation fix initially
+  landed in only one of them.
 - Upload happens **inside `postTweet`**, after the token has been freshened and before the tweet, so
   it always runs with a valid token.
 - **A failed upload fails the whole post.** Deliberate: silently publishing text-only is the exact
   bug this exists to fix, and a tweet cannot be edited to add a picture afterwards. The escape hatch
   is `AppPreferences.attachImageToPost` (Settings → *Attach photo to post*, default **on**).
+
+#### EXIF orientation must be baked into the pixels
+
+Phone cameras usually store the sensor buffer unrotated and record how the phone was held in the
+EXIF `Orientation` tag. `BitmapFactory.decodeStream` **ignores that tag**, so a portrait photo
+decodes sideways. Worse, compressing a decoded bitmap writes a fresh JPEG with **no EXIF at all**,
+so nothing downstream can correct it afterwards.
+
+> [!WARNING]
+> **Nothing on the device reveals this.** The gallery honours EXIF and so does Coil, so the in-app
+> preview is upright while the uploaded bytes are rotated 90°. The only evidence was a published
+> post with a sideways newspaper in it. Do not "verify" an image change by looking at the preview.
+
+`ImageEncoder.transformFor()` maps all eight orientation constants — including the four mirrored
+ones — and is pure, so `ImageOrientationTest` pins it without a device. The rotation is applied
+*before* the scale so the 1600 px cap applies to the final orientation.
+
+This also affects **analysis quality**, not just presentation: the model was being asked to read
+rotated newspaper columns, which plausibly contributed to the masthead being misdetected.
 
 ### `[Image N]` markers must never reach the composer
 
@@ -725,6 +767,10 @@ cheap proof the rewrite changed metadata and nothing else.
     `adb shell am start -n com.aistudio.omnibrief.kypzmr/com.example.MainActivity`.
   - Nav tap targets shift when the tab count changes. Get real bounds with
     `adb shell uiautomator dump` rather than guessing coordinates.
+- **Not yet verified on device (2026-09-14):** the source-override rewrite and the EXIF rotation fix.
+  Unit tested (57 tests, 0 failures) and installed, but the phone was locked. The rotation fix in
+  particular **cannot** be verified from the in-app preview — it needs a real post, or an inspection
+  of the uploaded bytes.
 - X posting **has** now been executed end to end, once, with consent (see §6) — text *and* image.
   What remains unverified there: the **standard (non-Blue) character-limit** guard in
   `approveAndPostToX()`, since the account is X Blue and the premium limit applied.

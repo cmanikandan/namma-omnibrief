@@ -277,34 +277,21 @@ class XApiService {
         }
     }
 
-    /** Decodes [uri] and re-encodes it as a JPEG small enough to upload. */
-    private fun readUriAsJpegBytes(context: Context, uri: Uri): ByteArray? {
-        return try {
-            val original = context.contentResolver.openInputStream(uri).use { stream ->
-                BitmapFactory.decodeStream(stream)
-            } ?: return null
-
-            val width = original.width
-            val height = original.height
-            val scaled = if (width > MAX_IMAGE_DIMENSION_PX || height > MAX_IMAGE_DIMENSION_PX) {
-                val ratio = minOf(
-                    MAX_IMAGE_DIMENSION_PX.toFloat() / width,
-                    MAX_IMAGE_DIMENSION_PX.toFloat() / height
-                )
-                Bitmap.createScaledBitmap(original, (width * ratio).toInt(), (height * ratio).toInt(), true)
-            } else {
-                original
-            }
-
-            ByteArrayOutputStream().use { out ->
-                scaled.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, out)
-                out.toByteArray()
-            }
-        } catch (e: Exception) {
-            Log.e("XApiService", "Error reading image for upload: $uri", e)
-            null
-        }
-    }
+    /**
+     * Decodes [uri] and re-encodes it as a JPEG small enough to upload.
+     *
+     * Delegates to [ImageEncoder] so the bytes X receives are identical to the ones Gemini analysed
+     * — including the EXIF rotation, which this used to drop and which put a sideways newspaper on
+     * the timeline.
+     */
+    private fun readUriAsJpegBytes(context: Context, uri: Uri): ByteArray? =
+        ImageEncoder.readUriAsJpegBytes(
+            context = context,
+            uri = uri,
+            maxDimension = MAX_IMAGE_DIMENSION_PX,
+            quality = JPEG_QUALITY,
+            logTag = "XApiService"
+        )
 
     private fun executePostRequest(
         token: String,

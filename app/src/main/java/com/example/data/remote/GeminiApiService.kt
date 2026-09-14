@@ -400,32 +400,20 @@ class GeminiApiService {
         return null
     }
 
+    /**
+     * Reads [uri] as a base64 JPEG for an `inlineData` part.
+     *
+     * Shares [ImageEncoder] with the X upload path, so the model sees exactly the image that will
+     * be posted. The orientation fix matters twice over here: a newspaper photographed in portrait
+     * decodes sideways, and asking the model to read rotated body text makes both the masthead
+     * detection and the summary worse.
+     */
     private fun readUriAsBase64Jpeg(context: Context, uri: Uri): String? {
-        return try {
-            val inputStream: InputStream? = context.contentResolver.openInputStream(uri)
-            val originalBitmap = BitmapFactory.decodeStream(inputStream)
-            inputStream?.close()
-
-            if (originalBitmap == null) return null
-
-            // Scale down if oversized to optimize payload size and speed while retaining high fidelity
-            val maxDimension = 1600
-            val width = originalBitmap.width
-            val height = originalBitmap.height
-            val scaledBitmap = if (width > maxDimension || height > maxDimension) {
-                val ratio = minOf(maxDimension.toFloat() / width, maxDimension.toFloat() / height)
-                Bitmap.createScaledBitmap(originalBitmap, (width * ratio).toInt(), (height * ratio).toInt(), true)
-            } else {
-                originalBitmap
-            }
-
-            val outputStream = ByteArrayOutputStream()
-            scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 85, outputStream)
-            val bytes = outputStream.toByteArray()
-            Base64.encodeToString(bytes, Base64.NO_WRAP)
-        } catch (e: Exception) {
-            Log.e("GeminiApi", "Error converting URI to Base64 JPEG: $uri", e)
-            null
-        }
+        val bytes = ImageEncoder.readUriAsJpegBytes(
+            context = context,
+            uri = uri,
+            logTag = "GeminiApi"
+        ) ?: return null
+        return Base64.encodeToString(bytes, Base64.NO_WRAP)
     }
 }

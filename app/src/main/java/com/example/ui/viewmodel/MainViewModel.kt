@@ -224,6 +224,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val articleTextInput = MutableStateFlow("")
     val articleImageUris = MutableStateFlow<List<Uri>>(emptyList())
     val articleSource = MutableStateFlow(prefs.defaultSource)
+
+    /**
+     * True once the user has picked a publication by hand.
+     *
+     * Detection is allowed to fill in a blank, but never to overrule a human. Without this, setting
+     * the chip to "The Economic Times" and re-analysing put the auto-detected masthead straight
+     * back.
+     */
+    private var sourceIsUserOverride: Boolean = false
+
     val showSourceDialog = MutableStateFlow(false)
 
     val isAnalyzingArticle = MutableStateFlow(false)
@@ -291,9 +301,40 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         articleImageUris.value = emptyList()
     }
 
+    /**
+     * Applies a user's choice of publication.
+     *
+     * Setting the chip is not enough on its own: by the time the user corrects it, the drafts
+     * already exist and the wrong masthead is baked into the text Gemini wrote. So this also
+     * rewrites every draft that has not been published yet, and remembers that the choice was
+     * explicit so [analyzeArticle] will not overwrite it with a fresh detection.
+     */
     fun setArticleSource(source: String) {
+        val previous = articleSource.value
         articleSource.value = source
+        sourceIsUserOverride = source.isNotBlank() && source != AUTO_DETECT_LABEL
         showSourceDialog.value = false
+        retargetDraftsToSource(newSource = source, fallbackOldSource = previous)
+    }
+
+    /**
+     * Rewrites pending drafts to attribute [newSource].
+     *
+     * Published drafts are left alone deliberately — the post is already on the timeline saying
+     * something else, and editing the local copy would only hide that.
+     */
+    private fun retargetDraftsToSource(newSource: String, fallbackOldSource: String) {
+        if (newSource.isBlank() || newSource == AUTO_DETECT_LABEL) return
+        if (postDrafts.value.isEmpty()) return
+
+        postDrafts.value = postDrafts.value.map { draft ->
+            if (draft.status == DraftPostStatus.POSTED) return@map draft
+            val oldSource = draft.source.ifBlank { fallbackOldSource }
+            val retargeted = retargetSource(draft.text, oldSource, newSource)
+            if (retargeted == draft.text && draft.source == newSource) draft
+            else draft.copy(text = retargeted, source = newSource)
+        }
+        activePostDraft.value = postDrafts.value.firstOrNull()?.text ?: activePostDraft.value
     }
 
     // --- Draft queue editing ---
@@ -336,6 +377,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         postToXStatus.value = null
         batchProgress.value = null
         articleSource.value = prefs.defaultSource
+        sourceIsUserOverride = false
     }
 
     /**
@@ -459,11 +501,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         failures.joinToString("\n")
             }
 
-            // Adopt a confidently detected source, otherwise ask the user which publication it is.
+            // Detection may fill in a blank, but it must not overrule a human. If the user picked a
+            // publication by hand, their choice wins and the new drafts are rewritten to match it.
             val detected = collected.firstOrNull { it.source.isNotBlank() && it.source != "Unknown" }?.source
-            if (detected != null) {
+            if (sourceIsUserOverride && articleSource.value.isNotBlank() &&
+                articleSource.value != AUTO_DETECT_LABEL
+            ) {
+                retargetDraftsToSource(
+                    newSource = articleSource.value,
+                    fallbackOldSource = detected.orEmpty()
+                )
+            } else if (detected != null) {
                 articleSource.value = detected
-            } else if (articleSource.value.isBlank() || articleSource.value == "Auto-Detect") {
+            } else if (articleSource.value.isBlank() || articleSource.value == AUTO_DETECT_LABEL) {
                 showSourceDialog.value = true
             }
 
@@ -1143,6 +1193,9 @@ Bengaluru has formally inaugurated its Sovereign AI & Deep Tech roadmap at the B
          */
         private const val HEADLINE_STALE_AFTER_MS = 15L * 60L * 1000L // 15 minutes
 
+        /** Chip label shown when no publication has been chosen or detected. */
+        const val AUTO_DETECT_LABEL = "Auto-Detect"
+
         /** Separator written between drafts of one batch by `saveDraftToRoom`. */
         private const val ARCHIVE_SEPARATOR = "\n\n---\n\n"
 
@@ -1159,9 +1212,50 @@ Bengaluru has formally inaugurated its Sovereign AI & Deep Tech roadmap at the B
          * Pure, so the stripping can be tested without a ViewModel — this leaked into a live tweet
          * once and is worth a regression test.
          */
+
         fun splitArchivedDraft(content: String): List<String> =
             content.split(ARCHIVE_SEPARATOR)
                 .map { it.replace(ARCHIVE_LABEL, "").trim() }
                 .filter { it.isNotBlank() }
+
+        /** Matches a trailing attribution line such as `Source: The Times of India`. */
+        private val SOURCE_LINE = Regex("""(?m)^([ \t]*Source:[ \t]*).*$""")
+
+        /**
+         * Rewrites a finished draft so it attributes [newSource] instead of [oldSource].
+         *
+         * Needed because the publication name is *inside* the text the model wrote — in the
+         * attribution line and often mid-sentence ("Key findings reported by …"). Changing the
+         * source chip alone left the draft still naming the wrong paper, and it was published that
+         * way.
+         *
+         * Two passes:
+         *  1. Every mention of [oldSource] is replaced, case-insensitively. The bare form without a
+         *     leading "The" is handled too, because the model is inconsistent about it — it may
+         *     detect "The Times of India" and then write "Times of India said". Longest variant
+         *     first, so the "The" is not orphaned.
+         *  2. Any `Source:` line is rewritten outright. That covers the case where the old name is
+         *     unknown or was never recorded, which is precisely when pass 1 can do nothing.
+         *
+         * Pure, so the substitution rules are unit tested without a ViewModel or a network.
+         */
+        fun retargetSource(text: String, oldSource: String, newSource: String): String {
+            if (newSource.isBlank() || text.isBlank()) return text
+            if (oldSource.equals(newSource, ignoreCase = true)) {
+                return SOURCE_LINE.replace(text) { m -> m.groupValues[1] + newSource }
+            }
+
+            var result = text
+            val variants = listOf(oldSource, oldSource.removePrefix("The ").removePrefix("the "))
+                .filter { it.isNotBlank() && !it.equals(newSource, ignoreCase = true) }
+                .distinct()
+                .sortedByDescending { it.length }
+
+            for (variant in variants) {
+                result = Regex(Regex.escape(variant), RegexOption.IGNORE_CASE)
+                    .replace(result, Regex.escapeReplacement(newSource))
+            }
+            return SOURCE_LINE.replace(result) { m -> m.groupValues[1] + newSource }
+        }
     }
 }
