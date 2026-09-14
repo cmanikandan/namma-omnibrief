@@ -392,22 +392,45 @@ Why it exists rather than "regenerate the tokens in the Developer Portal":
 > which is how the whole defect arose. Scopes are granted by the **authorize endpoint**, which
 > accepts an arbitrary `scope` parameter.
 
-Three traps, all hit for real during the verified run:
+Three traps, all hit for real:
 
-1. **The redirect URI must already be registered.** The script's default loopback
-   `http://127.0.0.1:8765/callback` was *not* on the App, and X answered with a generic
-   *"Something went wrong — You weren't able to give access to the App."* That page is identical for
-   a bad client id, an unregistered redirect, an invalid scope and an incomplete app config, so it
-   tells you nothing. **Diagnose by reading the App's registered callback, not by guessing.** The
-   working run used the App's existing `https://github.com/cmanikandan` and captured the code from
-   the address bar.
+1. **The redirect URI must already be registered**, matched exactly. When the script's default
+   loopback was *not* yet on the App, X answered with a generic *"Something went wrong — You weren't
+   able to give access to the App."* That page is identical for a bad client id, an unregistered
+   redirect, an invalid scope and an incomplete app config, so it tells you nothing. **Diagnose by
+   reading the App's registered callbacks, not by guessing.**
 2. **Authorization codes expire in ~30 seconds.** Reading the redirect URL out of the browser,
-   putting it in a chat turn and then exchanging it is too slow; the exchange returns
-   `{"error":"invalid_request","error_description":"Value passed for the authorization code was
-   invalid."}`, which reads like a broken flow and is not. Keep the capture and the exchange in one
-   process.
+   putting it in a chat turn and then exchanging it is too slow — measured at ~28 s end to end, which
+   failed with `{"error":"invalid_request","error_description":"Value passed for the authorization
+   code was invalid."}`. That reads like a broken flow and is not. **Keep the capture and the
+   exchange in one process.**
 3. **The consent screen gates Authorize behind an "I trust this app" checkbox** when the callback
    domain is unverified. The button is greyed out until it is ticked.
+
+### Just run it with no arguments
+
+> [!TIP]
+> **`http://127.0.0.1:8765/callback` is now registered on the App** (added 2026-09-14), alongside the
+> original `https://github.com/cmanikandan`. That makes the default path the good one:
+>
+> ```bash
+> X_CLIENT_ID=... X_CLIENT_SECRET=... python3 tools/x_oauth_setup.py
+> ```
+>
+> `is_loopback()` sees the loopback host and runs `capture_via_listener`, a one-shot local HTTP
+> server that receives the redirect directly. Nothing is copied by hand, so **trap 2 cannot bite** —
+> the exchange happens milliseconds after consent. The only human action is clicking Authorize.
+> This is the route to use; pass `--redirect-uri https://github.com/cmanikandan` only if the listener
+> is somehow blocked, and expect to lose the race if a chat turn is involved.
+>
+> Plain `http://` is normally rejected by X, but loopback is the documented RFC 8252 exception. It
+> must be the literal `127.0.0.1` — `localhost` is matched as a different string and is rejected.
+> Check the port is free first (`lsof -nP -iTCP:8765 -sTCP:LISTEN`); the server binds it directly and
+> the script has no fallback port.
+
+**Verified unattended on 2026-09-14.** Granted scope came back as
+`offline.access tweet.write media.write users.read tweet.read`, and `POST /2/media/upload` with that
+token returned **HTTP 200** with a real media id.
 
 Useful confirmations from that consent screen: the permission line that corresponds to `media.write`
 reads **"Upload media like photos and videos for you."** If it is absent, the scope was not offered.
@@ -845,12 +868,18 @@ cheap proof the rewrite changed metadata and nothing else.
     the preview looks correct whether or not the bytes that get uploaded are.
   - *Preview card header.* A third, pre-existing bug found while verifying the first two — see §8.
     Fixed and re-measured: the source pill went from `2 × 994 px` to `243 × 79 px`.
-- **The X OAuth tokens were destroyed** and posting will fail until they are replaced. See the
-  caution in §9 for the cause. The access and refresh tokens, the client id and the client secret all
-  lived only in device SharedPreferences; the Gemini key and X bearer token self-healed from the
-  `BuildConfig`/`.env` fallback. Re-authorise with `tools/x_oauth_setup.py` (§6) — and remember the
-  Developer Portal cannot grant `media.write`, so a Portal-generated token will silently post
-  text-only.
+- **The X OAuth tokens were destroyed and have since been re-minted.** See the caution in §9 for the
+  cause. The access and refresh tokens, the client id and the client secret all lived only in device
+  SharedPreferences; the Gemini key and X bearer token self-healed from the `BuildConfig`/`.env`
+  fallback. Recovery, for the next time: mint with `tools/x_oauth_setup.py` (§6), then write
+  `shared_prefs/omnibrief_settings.xml` with `adb shell "run-as <pkg> sh -c 'cat > …'" < file` while
+  the app is **force-stopped** — a running app holds the prefs in memory and will overwrite the file.
+  `x_token_expires_at` is epoch **milliseconds**; `0` means "unknown" and disables proactive refresh
+  rather than forcing one.
+  **Confirmed working on device 2026-09-14:** Settings → *Test Connection & Refresh Token* performed
+  a real refresh — both tokens rotated in storage and the expiry advanced to exactly two hours out.
+  That token round-trip is the cheapest end-to-end proof of the X credential path, and it needs no
+  live post.
 - Also still unverified: the **standard (non-Blue) character-limit** guard in `approveAndPostToX()`,
   since the account is X Blue and the premium limit applies.
 - Saving tokens through Settings does not reset `x_token_expires_at` (§6, *Token lifecycle*). One
