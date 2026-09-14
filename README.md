@@ -31,7 +31,6 @@ Bengaluru identity.
 - [Testing](#testing)
 - [Deploying](#deploying)
 - [Troubleshooting](#troubleshooting)
-- [Where this app came from](#where-this-app-came-from)
 - [Privacy](#privacy)
 
 ---
@@ -723,8 +722,8 @@ public listing, and skips the hardest requirement below.
 #### Fix these two first — they are specific to this app
 
 > [!CAUTION]
-> **`applicationId` is permanent.** It is currently `com.aistudio.omnibrief.kypzmr`, which the AI
-> Studio export generated. Once you upload a build under an ID you can never change it, and you
+> **`applicationId` is permanent.** It is currently `com.aistudio.omnibrief.kypzmr`, a leftover from
+> the original project scaffold. Once you upload a build under an ID you can never change it, and you
 > cannot reuse it for a different app. Worse, `com.aistudio.*` reads as a claim of affiliation with
 > Google's AI Studio, which is the kind of thing that draws an impersonation rejection. Change it to
 > a domain you control — `com.cmanikandan.omnibrief` or similar — **before the first upload**. Edit
@@ -796,32 +795,6 @@ Problems this project has actually hit:
 | Gradle sync fails right after opening | Usually a transient download failure. **File → Sync Project with Gradle Files** and retry |
 | `Configuration cache ... cannot be reused` | Informational, not an error. Editing build files invalidates the cache and the next build is slower |
 | "unable to strip ... libandroidx.graphics.path.so" | Harmless warning, ignore |
-
----
-
-## Where this app came from
-
-The first version was generated in [Google AI Studio](https://aistudio.google.com/), which produced
-the Compose UI, the Room database and the initial Gemini wiring from a series of prompts. The
-generated project is at
-[ai.studio/apps/0ff20665-6888-44b0-9d53-f75b5441348e](https://ai.studio/apps/0ff20665-6888-44b0-9d53-f75b5441348e).
-
-Worth understanding if you go back to AI Studio to make changes:
-
-- **AI Studio writes Android code; it does not run it.** There is no emulator in the browser for an
-  Android project. Building, running and debugging all happen in Android Studio. The export's own
-  instructions said the same.
-- **In AI Studio**, the Gemini key comes from its **Secrets** panel, which is why `.env.example`
-  mentions it. Outside AI Studio the same value comes from Settings in the app or a local `.env`.
-- **Regenerating overwrites hand-written fixes.** A lot of what is in this repo — the working Gradle
-  wrapper, the conditional signing config, the removal of hardcoded credentials, the grounding and
-  character-limit fixes in the prompt — was added by hand afterwards. Pulling a fresh export over
-  the top will undo them.
-- Several AI Studio runs on this project stopped mid-edit with "Quota exceeded" and left the code
-  uncompilable, so **always build after an export** rather than assuming it is sound.
-
-If you do want to keep using AI Studio for large UI changes, treat it as a code generator: take the
-diff it produces, review it, and keep the fixes documented in [AGENTS.md](AGENTS.md).
 
 ---
 
