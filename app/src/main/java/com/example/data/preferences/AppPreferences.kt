@@ -1,6 +1,7 @@
 package com.example.data.preferences
 
 import android.content.Context
+import com.example.data.remote.HeadlineSort
 import android.content.SharedPreferences
 import com.example.BuildConfig
 
@@ -20,6 +21,7 @@ class AppPreferences(context: Context) {
         private const val KEY_DEFAULT_SOURCE = "default_source"
         private const val KEY_IS_LIGHT_THEME = "is_light_theme"
         private const val KEY_FONT_SCALE = "font_scale"
+        private const val KEY_HEADLINE_SORT = "headline_sort"
 
         const val DEFAULT_MODEL = "gemini-3.8-flash"
 
@@ -38,7 +40,7 @@ class AppPreferences(context: Context) {
             1.50f to "Extra Large"
         )
 
-        /** Maximum number of article images that can be queued for a single batch. */
+    /** Maximum number of article images that can be queued for a single batch. */
         const val MAX_ARTICLE_IMAGES = 10
 
         /** X hard character limits. Exceeding them makes the API reject the post outright. */
@@ -145,4 +147,14 @@ class AppPreferences(context: Context) {
     var fontScale: Float
         get() = prefs.getFloat(KEY_FONT_SCALE, DEFAULT_FONT_SCALE).coerceIn(0.85f, 1.6f)
         set(value) = prefs.edit().putFloat(KEY_FONT_SCALE, value.coerceIn(0.85f, 1.6f)).apply()
+
+    /**
+     * How the Today feed is ordered. Persisted so the choice survives a restart.
+     *
+     * Stored by the enum's stable [com.example.data.remote.HeadlineSort.id] rather than by
+     * `name` or ordinal, so renaming or reordering the enum cannot silently reset a user's choice.
+     */
+    var headlineSort: HeadlineSort
+        get() = HeadlineSort.fromId(prefs.getString(KEY_HEADLINE_SORT, null))
+        set(value) = prefs.edit().putString(KEY_HEADLINE_SORT, value.id).apply()
 }

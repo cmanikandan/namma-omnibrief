@@ -21,6 +21,7 @@ import com.example.data.remote.ConferenceReportResult
 import com.example.data.remote.GeminiApiService
 import com.example.data.remote.HackerNewsService
 import com.example.data.remote.HeadlineItem
+import com.example.data.remote.HeadlineSort
 import com.example.data.remote.XApiService
 import com.example.data.remote.XPostResult
 import com.example.data.repository.BriefRepository
@@ -30,6 +31,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.io.File
@@ -95,6 +97,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val headlinesLastUpdated = MutableStateFlow<String?>(null)
 
     /**
+     * Wall-clock time of the last *successful* fetch, as epoch millis. 0 means never.
+     *
+     * Separate from [headlinesLastUpdated], which is a preformatted "h:mm a" string for display
+     * only and cannot be compared against anything.
+     */
+    private var lastHeadlineFetchMillis = 0L
+
+    /**
+     * How the Today list is ordered. Persisted, so the choice survives a restart.
+     */
+    val headlineSort = MutableStateFlow(prefs.headlineSort)
+
+    fun setHeadlineSort(sort: HeadlineSort) {
+        prefs.headlineSort = sort
+        headlineSort.value = sort
+    }
+
+    /**
+     * What the Today screen actually renders: [headlines] reordered per [headlineSort].
+     *
+     * Derived rather than sorted in place so that flipping the toggle is instant and never costs a
+     * network round trip, and so the service's original relevance ranking is preserved and can be
+     * returned to. The ordering itself lives on [HeadlineSort.apply].
+     */
+    val sortedHeadlines: StateFlow<List<HeadlineItem>> =
+        combine(headlines, headlineSort) { list, sort -> sort.apply(list) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
      * Observable mirror of [AppPreferences.fontScale]. Backing the theme with a flow means the
      * whole UI restyles the moment the user moves the slider, with no restart.
      */
@@ -108,6 +139,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     init {
         // Load on construction so the home screen has content the moment it is shown.
         refreshHeadlines()
+        startHeadlineAutoRefresh()
+    }
+
+    /**
+     * Ticks once an hour for as long as the ViewModel is alive, refreshing the feed.
+     *
+     * Deliberately a plain coroutine loop rather than WorkManager: this only needs to keep a
+     * foreground screen current, there is nothing to deliver when the app is not running, and
+     * adding a scheduler dependency for it would be out of proportion. The loop dies with
+     * [viewModelScope], so a backgrounded app is not burning data in the background either.
+     */
+    private fun startHeadlineAutoRefresh() {
+        viewModelScope.launch {
+            while (true) {
+                delay(HEADLINE_REFRESH_INTERVAL_MS)
+                refreshHeadlines()
+            }
+        }
+    }
+
+    /**
+     * Called when the app returns to the foreground.
+     *
+     * Refreshes only if the feed is older than [HEADLINE_STALE_AFTER_MS], so flicking away to check
+     * something and coming straight back does not trigger a pointless round trip, while opening the
+     * app the next morning does.
+     */
+    fun onAppResumed() {
+        val age = System.currentTimeMillis() - lastHeadlineFetchMillis
+        if (age >= HEADLINE_STALE_AFTER_MS) refreshHeadlines()
     }
 
     /**
@@ -121,6 +182,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             headlinesError.value = null
             try {
                 headlines.value = hackerNews.fetchTopHeadlines()
+                lastHeadlineFetchMillis = System.currentTimeMillis()
                 headlinesLastUpdated.value =
                     SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date())
             } catch (e: Exception) {
@@ -990,5 +1052,18 @@ Bengaluru has formally inaugurated its Sovereign AI & Deep Tech roadmap at the B
         super.onCleared()
         audioRecorder.reset()
         audioPlayer.stop()
+    }
+
+    companion object {
+        /** How often the Today feed re-fetches while the app is alive. */
+        private const val HEADLINE_REFRESH_INTERVAL_MS = 60L * 60L * 1000L // 1 hour
+
+        /**
+         * How stale the feed must be before returning to the app triggers a fetch.
+         *
+         * Shorter than the hourly tick on purpose: coming back after fifteen minutes should feel
+         * current, but bouncing out to a browser and straight back should not re-request.
+         */
+        private const val HEADLINE_STALE_AFTER_MS = 15L * 60L * 1000L // 15 minutes
     }
 }

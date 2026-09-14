@@ -26,18 +26,23 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.LocalFireDepartment
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -50,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.remote.HeadlineItem
+import com.example.data.remote.HeadlineSort
 import com.example.ui.theme.BrandGradient
 import com.example.ui.theme.ChipBlush
 import com.example.ui.theme.CyanAccent
@@ -62,6 +68,7 @@ import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.TextTertiary
 import com.example.ui.viewmodel.MainViewModel
+import kotlinx.coroutines.delay
 
 /**
  * Home screen: the top Hacker News stories matched against the user's standing interests.
@@ -72,10 +79,22 @@ import com.example.ui.viewmodel.MainViewModel
  */
 @Composable
 fun HeadlinesScreen(viewModel: MainViewModel, modifier: Modifier = Modifier) {
-    val headlines by viewModel.headlines.collectAsStateWithLifecycle()
+    val headlines by viewModel.sortedHeadlines.collectAsStateWithLifecycle()
+    val sort by viewModel.headlineSort.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoadingHeadlines.collectAsStateWithLifecycle()
     val error by viewModel.headlinesError.collectAsStateWithLifecycle()
     val lastUpdated by viewModel.headlinesLastUpdated.collectAsStateWithLifecycle()
+
+    // A slow clock for the "3h ago" labels. Without it the ages are computed once when the list is
+    // composed and then sit there lying, which is very visible on a screen the user leaves open.
+    // One minute is the coarsest tick that still keeps the sub-hour labels correct.
+    var nowSeconds by remember { mutableLongStateOf(System.currentTimeMillis() / 1000) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(60_000)
+            nowSeconds = System.currentTimeMillis() / 1000
+        }
+    }
 
     LazyColumn(
         modifier = modifier
@@ -87,7 +106,15 @@ fun HeadlinesScreen(viewModel: MainViewModel, modifier: Modifier = Modifier) {
         ),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        item { HeroHeader(lastUpdated, isLoading, onRefresh = { viewModel.refreshHeadlines() }) }
+        item {
+            HeroHeader(
+                lastUpdated = lastUpdated,
+                isLoading = isLoading,
+                sort = sort,
+                onSortChange = { viewModel.setHeadlineSort(it) },
+                onRefresh = { viewModel.refreshHeadlines() }
+            )
+        }
 
         if (error != null && headlines.isEmpty()) {
             item { ErrorCard(error!!) { viewModel.refreshHeadlines() } }
@@ -101,6 +128,7 @@ fun HeadlinesScreen(viewModel: MainViewModel, modifier: Modifier = Modifier) {
             HeadlineCard(
                 rank = index + 1,
                 item = item,
+                nowSeconds = nowSeconds,
                 onOpen = { viewModel.openHeadline(item) },
                 onDraft = { viewModel.draftPostFromHeadline(item) }
             )
@@ -109,7 +137,13 @@ fun HeadlinesScreen(viewModel: MainViewModel, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun HeroHeader(lastUpdated: String?, isLoading: Boolean, onRefresh: () -> Unit) {
+private fun HeroHeader(
+    lastUpdated: String?,
+    isLoading: Boolean,
+    sort: HeadlineSort,
+    onSortChange: (HeadlineSort) -> Unit,
+    onRefresh: () -> Unit
+) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Box(
             modifier = Modifier
@@ -179,14 +213,77 @@ private fun HeroHeader(lastUpdated: String?, isLoading: Boolean, onRefresh: () -
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
+
+        Spacer(Modifier.height(10.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "SORT",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = TextTertiary,
+                letterSpacing = 1.2.sp
+            )
+            HeadlineSort.entries.forEach { option ->
+                SortChip(
+                    label = option.label,
+                    selected = option == sort,
+                    onClick = { onSortChange(option) },
+                    tag = "headline_sort_${option.id}"
+                )
+            }
+        }
+
         Spacer(Modifier.height(2.dp))
     }
 }
+
+/**
+ * One option in the Today sort control.
+ *
+ * Hand-rolled rather than a Material `FilterChip` so it matches the rest of this screen's rounded,
+ * low-chrome look, and so the resting state stays quiet enough not to compete with the headlines
+ * themselves. The label is capped to a single line: the chips sit in a row and a wrapped label
+ * would push the hero header taller.
+ */
+@Composable
+private fun SortChip(label: String, selected: Boolean, onClick: () -> Unit, tag: String) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(if (selected) CyanAccent else ChipBlush)
+            .border(
+                width = 1.dp,
+                color = if (selected) CyanAccent else ObsidianBorder,
+                shape = RoundedCornerShape(50)
+            )
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .testTag(tag),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            color = if (selected) androidx.compose.ui.graphics.Color.White else TextSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
 
 @Composable
 private fun HeadlineCard(
     rank: Int,
     item: HeadlineItem,
+    /** Current epoch seconds, supplied by the caller's ticker so ages stay live. */
+    nowSeconds: Long,
     onOpen: () -> Unit,
     onDraft: () -> Unit
 ) {
@@ -303,6 +400,26 @@ private fun HeadlineCard(
                     fontSize = 12.sp,
                     color = TextSecondary
                 )
+
+                // When the story actually broke. Recomputed per recomposition against `now`, which
+                // the screen re-reads on every refresh, so these stay honest rather than freezing
+                // at whatever they said when the list was first built.
+                val age = item.relativeAge(nowSeconds)
+                if (age.isNotEmpty()) {
+                    Spacer(Modifier.width(12.dp))
+                    Icon(
+                        Icons.Default.Schedule,
+                        contentDescription = null,
+                        tint = TextTertiary,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        text = age,
+                        fontSize = 12.sp,
+                        color = TextTertiary
+                    )
+                }
 
                 Spacer(Modifier.weight(1f))
 

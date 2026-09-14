@@ -48,8 +48,15 @@ popularity, so a 2000-point story about an unrelated topic will not push out a r
   the app, before you have configured anything.
 - **Ranking**: `points + 600 × (interest matches) + 250 if currently on the HN front page`. A
   diversity cap of 3 stories per interest stops a single big news day filling the whole list.
-- **Loading state**: shimmering placeholder cards while the fetch is in flight; pull the refresh
-  button in the header to re-rank at any time.
+- **Stays current on its own**: refreshes **every hour** while the app is running, and again
+  **whenever you reopen the app** if the feed is more than 15 minutes old. The header shows the last
+  fetch time, and the refresh button forces one at any time.
+- **Each story shows its age** — "42m ago", "6h ago", "2d ago" — taken from the story's actual
+  Hacker News post time, not from when the app fetched it. The labels tick over on their own.
+- **Sort by relevance or by date**: the **For you / Newest** toggle under the header switches
+  between the interest ranking above and strict newest-first. Both show the same ten stories, so
+  nothing is hidden either way, and your choice is remembered between launches.
+- **Loading state**: shimmering placeholder cards while the fetch is in flight.
 - **Tap a card** to open the article, or tap **Draft** to pipe that headline straight into the
   Article → X flow.
 
@@ -89,6 +96,10 @@ executive summary, key takeaways, slide insights, notable quotes and action item
 Compact to Extra Large. Each option renders its own preview at its own scale, so you can see the
 result before you commit to it. The default is **Comfortable (1.15×)**, deliberately larger than
 stock Material. The change applies immediately, with no restart.
+
+The one exception is the bottom navigation bar: five tabs share the width, so its labels grow with
+the setting only as far as they still fit on one line. Past that they hold their size rather than
+wrapping "Conference" onto a second line and pushing the bar up over the content.
 
 ---
 

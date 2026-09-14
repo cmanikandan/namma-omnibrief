@@ -68,6 +68,7 @@ import com.example.ui.theme.ChipBlush
 import com.example.ui.theme.CyanAccent
 import com.example.ui.theme.EmeraldVerified
 import com.example.ui.theme.ObsidianBorder
+import com.example.ui.theme.PreviewAtFontScale
 import com.example.ui.theme.ObsidianCard
 import com.example.ui.theme.ObsidianSurface
 import com.example.ui.theme.RoseError
@@ -471,12 +472,19 @@ fun SettingsScreen(
                                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                                 color = TextPrimary
                             )
-                            // Preview the option at its own scale so the choice is visible up front.
-                            Text(
-                                text = "The quick brown fox",
-                                fontSize = (14 * scaleValue).sp,
-                                color = TextSecondary
-                            )
+                            // Preview each option at its own absolute scale. Without this the
+                            // literal sp below would itself be scaled by whatever is currently
+                            // selected, so every preview would drift as the selection changed.
+                            PreviewAtFontScale(
+                                optionScale = scaleValue,
+                                currentScale = currentFontScale
+                            ) {
+                                Text(
+                                    text = "The quick brown fox",
+                                    fontSize = 14.sp,
+                                    color = TextSecondary
+                                )
+                            }
                         }
                         if (selected) {
                             Icon(

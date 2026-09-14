@@ -12,6 +12,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.ui.components.AppDestination
@@ -33,6 +35,14 @@ class MainActivity : ComponentActivity() {
       // Hoisted so the theme can react to the font-size preference without a restart.
       val appViewModel: MainViewModel = viewModel()
       val scale by appViewModel.fontScale.collectAsStateWithLifecycle()
+
+      // Refresh the Today feed when the app comes back to the foreground. The ViewModel's hourly
+      // timer only ticks while the process is alive, so without this, reopening the app after it
+      // had been swapped out would show whatever was last fetched. The ViewModel decides whether
+      // the feed is actually stale enough to warrant a request.
+      LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        appViewModel.onAppResumed()
+      }
 
       MyApplicationTheme(fontScale = scale) {
         OmniBriefApp(appViewModel)

@@ -12,6 +12,39 @@ import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
 /**
+ * Ordering applied to the Today feed after it has been fetched and ranked.
+ *
+ * This is a *sort*, not a filter: both modes show the same ten stories, so switching to
+ * [NEWEST] never hides something that [FOR_YOU] surfaced. [id] is what gets persisted, so it must
+ * stay stable even if the enum is reordered or the labels are reworded.
+ */
+enum class HeadlineSort(val id: String, val label: String) {
+    /** The interest-weighted ranking the service produced. The default. */
+    FOR_YOU("for_you", "For you"),
+
+    /** Strict reverse-chronological by the story's Hacker News post time. */
+    NEWEST("newest", "Newest");
+
+    companion object {
+        fun fromId(id: String?): HeadlineSort = entries.firstOrNull { it.id == id } ?: FOR_YOU
+    }
+
+    /**
+     * Returns [items] in this ordering.
+     *
+     * Lives here rather than in the ViewModel so the rule is testable on its own and there is one
+     * place to change when an ordering is added. [FOR_YOU] deliberately returns the list untouched:
+     * the relevance ranking is produced upstream by the service and must be preserved so the user
+     * can switch back to it. [NEWEST] uses a stable sort, so stories posted in the same second keep
+     * their relevance order instead of shuffling between recompositions.
+     */
+    fun apply(items: List<HeadlineItem>): List<HeadlineItem> = when (this) {
+        FOR_YOU -> items
+        NEWEST -> items.sortedByDescending { it.createdAtSeconds }
+    }
+}
+
+/**
  * One ranked Hacker News story shown on the Headlines home screen.
  *
  * [matchedInterests] records which of the user's interest topics caused this story to surface, so
@@ -25,6 +58,13 @@ data class HeadlineItem(
     val commentCount: Int,
     val author: String,
     val createdAt: String,
+    /**
+     * Story publication time as a Unix epoch in **seconds** (Algolia's `created_at_i`).
+     *
+     * Kept as the epoch rather than only the ISO string in [createdAt] so the UI can compute a
+     * relative age without parsing a date on every recomposition. 0 means unknown.
+     */
+    val createdAtSeconds: Long = 0L,
     val matchedInterests: List<String> = emptyList(),
     val isFrontPage: Boolean = false
 ) {
@@ -41,6 +81,26 @@ data class HeadlineItem(
     /** The link to actually open: the article if there is one, otherwise the HN thread. */
     val openUrl: String
         get() = url.ifBlank { discussionUrl }
+
+    /**
+     * Compact age of the story, e.g. "just now", "42m ago", "6h ago", "2d ago".
+     *
+     * Returns an empty string when [createdAtSeconds] is unknown, so callers can simply omit the
+     * label rather than render something misleading like "56y ago".
+     */
+    fun relativeAge(nowSeconds: Long = System.currentTimeMillis() / 1000): String {
+        if (createdAtSeconds <= 0L) return ""
+        val delta = nowSeconds - createdAtSeconds
+        // Clock skew between the device and the API can make a fresh story look like the future.
+        if (delta < 60) return "just now"
+        val minutes = delta / 60
+        if (minutes < 60) return "${minutes}m ago"
+        val hours = minutes / 60
+        if (hours < 24) return "${hours}h ago"
+        val days = hours / 24
+        if (days < 7) return "${days}d ago"
+        return "${days / 7}w ago"
+    }
 }
 
 /**
@@ -220,7 +280,8 @@ class HackerNewsService {
                         points = h.optInt("points"),
                         commentCount = h.optInt("num_comments"),
                         author = h.optString("author"),
-                        createdAt = h.optString("created_at")
+                        createdAt = h.optString("created_at"),
+                        createdAtSeconds = h.optLong("created_at_i", 0L)
                     )
                 )
             }

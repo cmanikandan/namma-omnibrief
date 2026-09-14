@@ -13,6 +13,16 @@ import androidx.compose.ui.unit.sp
 // Everything is built from the platform sans-serif (Roboto on device). No font
 // resources and no extra Gradle dependencies - downloadable fonts are out of scope.
 
+/**
+ * Hard bounds on the user-selectable text scale.
+ *
+ * Shared with [com.example.ui.theme.MyApplicationTheme], which clamps the same way when it
+ * overrides `LocalDensity.fontScale`. Keeping one definition means the density override and the
+ * type ramp can never disagree about what a given scale means.
+ */
+const val MIN_FONT_SCALE = 0.75f
+const val MAX_FONT_SCALE = 1.75f
+
 /** Shared builder so every style scales consistently. */
 private fun omniStyle(
   fontSize: Float,
@@ -42,7 +52,7 @@ private fun omniStyle(
  * and editorial instead of loose and airy as they grow.
  */
 fun appTypography(scale: Float = 1.0f): Typography {
-  val s = scale.coerceIn(0.75f, 1.75f)
+  val s = scale.coerceIn(MIN_FONT_SCALE, MAX_FONT_SCALE)
   return Typography(
     // Display - hero moments only.
     displayLarge = omniStyle(58f, 64f, FontWeight.Bold, -1.0f, s),

@@ -232,6 +232,32 @@ Loading state is a set of shimmering placeholder cards (`ShimmerCard`). On a fas
 fetch completes in well under a second, so the shimmer is genuinely hard to catch in a screenshot —
 that is not evidence it is missing.
 
+### Freshness
+
+- `MainViewModel.startHeadlineAutoRefresh()` refetches every `HEADLINE_REFRESH_INTERVAL_MS` (1 h).
+  A plain coroutine loop, **not WorkManager**: this only has to keep a foreground screen current,
+  and the loop dies with `viewModelScope` so a backgrounded app is not spending data.
+- `MainViewModel.onAppResumed()`, wired from `MainActivity` via `LifecycleEventEffect(ON_RESUME)`,
+  refetches on open but only when the feed is older than `HEADLINE_STALE_AFTER_MS` (15 min).
+- Each card shows a story age ("16h ago") from `HeadlineItem.relativeAge()`, driven by a 60-second
+  ticker in `HeadlinesScreen` — without the ticker the ages are computed once and then quietly go
+  stale on a screen the user leaves open. `relativeAge` returns `""` for an unknown timestamp so the
+  label is omitted rather than rendered as "56y ago".
+
+### Sorting
+
+The order lives on **`HeadlineSort.apply()`**, not in the ViewModel, so it is unit-testable without
+a ViewModel or a network (`HeadlineSortTest`). `MainViewModel.sortedHeadlines` just combines it with
+`headlines`; the screen renders **`sortedHeadlines`, never `headlines`**.
+
+- `FOR_YOU` returns the list untouched — the interest ranking above is the product, and re-sorting
+  it would throw that work away. It must stay reachable, which is why this is a sort and not a
+  filter.
+- `NEWEST` is `sortedByDescending { createdAtSeconds }`. HN timestamps are whole seconds so ties are
+  common; the sort is stable so tied stories keep their relevance order instead of reshuffling.
+- The choice persists under `headline_sort` by the enum's **stable `id`**, not its ordinal or label.
+
+
 ---
 
 ## 6. X integration
@@ -293,12 +319,31 @@ Implementation:
   while), and there are three gradient vals for hero surfaces: `SunsetGradient`, `VioletGradient`
   and `BrandGradient`. **Every text/surface pair was checked numerically against WCAG AA**, worst
   case 4.6:1 on `ChipBlush`. If you introduce a colour, check it rather than eyeballing it.
-- **Typography is scalable, and that is a contract.** `appTypography(scale)` in `Type.kt` multiplies
-  the fontSize and lineHeight of all 15 M3 styles. **letterSpacing is deliberately not scaled** —
-  scaling it makes large headlines look loose. Never hardcode an `sp` value in a screen where a
-  `MaterialTheme.typography` style would do, or that text will stop responding to the setting.
-  Default is `AppPreferences.DEFAULT_FONT_SCALE = 1.15f` (the user asked for a slightly bigger
-  default); the user-facing options live in `FONT_SCALE_OPTIONS`.
+- **Text scaling is applied via `LocalDensity`, not via the typography.** This is the important one.
+  These screens were written with roughly **150 literal `fontSize = 12.sp`-style values** instead of
+  `MaterialTheme.typography.*`. Scaling only the type ramp therefore changed almost nothing and the
+  Text Size setting looked broken while being "implemented" — it shipped that way once, and the user
+  caught it. `MyApplicationTheme` now overrides `LocalDensity.fontScale`, which is what `sp` → px
+  conversion actually reads, so **every** `sp` in the tree scales, literals included. Consequences:
+  - The `Typography` handed to `MaterialTheme` must stay at **baseline** scale. Passing
+    `appTypography(fontScale)` as well would scale those styles twice.
+  - `density` is deliberately left alone, so `dp` paddings and component sizes do not grow. Very
+    large scales will therefore tighten layouts — that is the standard Android trade-off.
+  - The system font-size setting is **multiplied**, not replaced, so accessibility settings compose.
+  - Settings previews use `PreviewAtFontScale(optionScale, currentScale)`, which divides the ambient
+    scale back out. Without that, previews are relative to the current selection and drift.
+  - Bounds live in `MIN_FONT_SCALE` / `MAX_FONT_SCALE` in `Type.kt`; default is
+    `AppPreferences.DEFAULT_FONT_SCALE = 1.15f` because the user asked for a bigger default.
+- **Bottom-nav labels shrink, they never wrap.** The direct consequence of the item above: five tabs
+  share the width, so at the larger Text Sizes "Conference" stopped fitting and Material wrapped it
+  onto a second line, breaking the word and making the bar taller. The user reported it. Labels now
+  go through the private `NavLabel` in `OmniNavBar.kt`, which is `maxLines = 1, softWrap = false`
+  and steps the size down by `NAV_LABEL_SHRINK_STEP_SP` from `NAV_LABEL_SP` (11) to a floor of
+  `NAV_LABEL_MIN_SP` (8) until `hasVisualOverflow` clears. Measuring passes are hidden with
+  `drawWithContent` so nothing visibly settles, and the search state is keyed on the ambient
+  `fontScale` so labels grow back when the user picks a smaller size. **Do not replace this with a
+  plain `Text`, and do not "simplify" it to a fixed size** — the latter silently opts the whole
+  navigation bar out of the Text Size setting. `NavBarLabelTest` covers both directions.
 - **Bengaluru identity** is a requirement: `img_bengaluru_logo.jpg` in `OmniTopBar` and the launcher
   icon, the "ನಮ್ಮ BLR" badge, and the "Namma BLR" sample buttons. App name is **Namma Omnibrief**.
 - **The launcher icon puts the artwork in the `<background>` layer**, not the foreground. The art is
@@ -332,10 +377,36 @@ export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
   - The secrets test compares against the `BuildConfig`-derived expectation, *not* against `""`,
     because a developer with a local `.env` legitimately gets non-empty values. Keep it that way or
     it fails on some machines and not others.
+- `FontScaleTest` — asserts a **hardcoded `sp` literal** resolves to a bigger pixel size when the
+  setting changes. Asserting on the typography instead would have passed against the broken
+  implementation, which is exactly how that bug shipped.
+- `HeadlineSortTest` — the Today ordering, via `HeadlineSort.apply()`. Pure JVM, no Robolectric.
+- `NavBarLabelTest` — the nav labels stay one line at `MAX_FONT_SCALE`, and still grow when there is
+  room.
 - `GreetingScreenshotTest` — Roborazzi snapshot of `OmniTopBar`. If it fails on a pixel diff after an
   intentional top-bar change: `./gradlew recordRoborazziDebug`.
 - Robolectric emits `WARNING: A restricted method in java.lang.System has been called` on modern
   JDKs. Benign.
+
+### Writing a Compose layout test that actually measures something
+
+All three of these were wrong in the first draft of `NavBarLabelTest`, and it passed cleanly against
+the unfixed code. If a layout test passes immediately, **break the implementation on purpose and
+confirm it fails** before believing it.
+
+1. **`@GraphicsMode(GraphicsMode.Mode.NATIVE)` is mandatory.** In legacy graphics mode Robolectric
+   does not measure text with real fonts, so nothing ever overflows and no wrap is ever detected.
+   Enabling it changed the measured height of the broken nav label from 83 px to 166 px — from
+   "looks fine" to the obvious two-liner it always was.
+2. **Query the unmerged tree** (`useUnmergedTree = true`). `NavigationBarItem` is selectable and
+   merges its children, so the merged node is the whole 80dp tab and every size assertion compares
+   the tab against itself.
+3. **Set a device qualifier** (`RobolectricDeviceQualifiers.Pixel8`). The default screen is 320dp
+   wide, narrower than any phone this app targets.
+
+`createComposeRule().setContent` may only be called **once per test** (`Cannot call setContent twice
+per test!`). To compare two configurations, render them as sibling subtrees in a single
+`setContent`.
 
 ---
 
