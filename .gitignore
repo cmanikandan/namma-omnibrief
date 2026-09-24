@@ -17,3 +17,11 @@ local.properties
 debug.keystore
 *.jks
 *.keystore
+
+# iOS / Xcode user state & build caches
+xcuserdata/
+DerivedData/
+.build/
+.swiftpm/
+*.xcworkspace/xcuserdata/
+

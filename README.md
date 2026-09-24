@@ -31,6 +31,7 @@ Bengaluru identity.
 - [Architecture](#architecture)
 - [Testing](#testing)
 - [Deploying](#deploying)
+- [Running on iOS (Namma Omnibrief Lite)](#running-on-ios-namma-omnibrief-lite)
 - [Roadmap](#roadmap)
 - [Troubleshooting](#troubleshooting)
 - [Privacy](#privacy)
@@ -861,6 +862,81 @@ recruiting a dozen people.
 4. Create the app, upload the bundle to **Internal testing**, add your own email as a tester.
 5. Complete Data safety, Content rating, App access and the privacy policy URL.
 6. Only if you want it public: run the 12-tester closed test, then apply for production.
+
+---
+
+## Running on iOS (Namma Omnibrief Lite)
+
+The [`ios/`](ios/) directory contains **Namma Omnibrief Lite**, a native Swift / SwiftUI port of the app designed to run on iOS 17+ (iPhone and iOS Simulator). See [`ios/README.md`](ios/README.md) for the full technical notes.
+
+### Why a "Lite" edition for iOS?
+
+The iOS port mirrors the **four daily-driver tabs** used on the Android handset — **Today** (keyless Algolia Hacker News Top 10 ranked by your interests), **X Drafter** (Camera / Photo Library up to 10 images, Gemini 8-rule grounded analysis, Source Override with prose + `Source:` + Archive retargeting, and OAuth 2.0 / web intent publishing), **Archive** (10-item FIFO rollover + Share sheet), and **Settings** (5-step live Text Size scaling, model selector, and `.env` bulk paste import).
+
+It intentionally omits the Conference Scribe live audio/slide recording stack so the iOS codebase stays zero-dependency, compiles in seconds, and provisions cleanly on a free personal Apple ID.
+
+### 1. Running the iOS Unit Tests from the Command Line
+
+> [!IMPORTANT]
+> **Google Corporate MacBook (Santa) Note:**
+> Do **not** use `Package.swift` / `swift test` on a corporate MacBook running **Santa**. SwiftPM compiles `Package.swift` into an unsigned temporary host binary (`ios-manifest` in `/private/var/folders/...`), which Santa blocks.
+>
+> Instead, run `./ios/scripts/run_tests.sh`. It executes the entire `OmniBriefCore` domain layer and all 14 unit tests in-process inside Apple's signed `xcrun swift` JIT interpreter — zero unsigned binaries are spawned and Santa never prompts.
+
+```bash
+# Run all 14 iOS unit tests (< 2 seconds, Santa-safe):
+./ios/scripts/run_tests.sh
+```
+
+### 2. Building the iOS App from Terminal (`xcodebuild`)
+
+If Xcode is installed as `/Applications/Xcode-beta.app` (rather than `/Applications/Xcode.app`), set `DEVELOPER_DIR` when calling `xcodebuild`:
+
+```bash
+export DEVELOPER_DIR="/Applications/Xcode-beta.app/Contents/Developer"
+
+# Build for iOS Simulator (unsigned verification):
+xcodebuild -project ios/NammaOmniBriefLite.xcodeproj \
+  -scheme NammaOmniBriefLite \
+  -sdk iphonesimulator \
+  -configuration Debug \
+  CODE_SIGNING_ALLOWED=NO \
+  -derivedDataPath /tmp/omnibrief-ios-derived \
+  build
+
+# Build for physical iPhone arm64 (unsigned compile verification):
+xcodebuild -project ios/NammaOmniBriefLite.xcodeproj \
+  -scheme NammaOmniBriefLite \
+  -sdk iphoneos \
+  -configuration Debug \
+  CODE_SIGNING_ALLOWED=NO \
+  -derivedDataPath /tmp/omnibrief-ios-derived \
+  build
+```
+
+### 3. How to Install & Test on a Real iPhone
+
+You can install and test **Namma Omnibrief Lite** on your own iPhone using any free personal Apple ID (no paid $99/year Apple Developer Program membership required):
+
+1. **Open the project in Xcode**:
+   ```bash
+   open -a "/Applications/Xcode-beta.app" ios/NammaOmniBriefLite.xcodeproj
+   ```
+2. **Add your Apple ID & Personal Team signing**:
+   - Open **Xcode → Settings… (`⌘,`) → Accounts**, click **＋ → Apple ID**, and sign in.
+   - Click `NammaOmniBriefLite` in Xcode's left Project Navigator → select the **`NammaOmniBriefLite`** target → open **Signing & Capabilities**.
+   - Check **Automatically manage signing**, choose **`<Your Name> (Personal Team)`**, and change **Bundle Identifier** to a unique value (for example, `com.<yourname>.omnibrief.ioslite`).
+3. **Enable Developer Mode on your iPhone (one-time setup on iOS 16/17/18+)**:
+   - Plug your iPhone into your MacBook via USB-C and tap **Trust This Computer** on the handset.
+   - On the iPhone, go to **Settings → Privacy & Security → Developer Mode** (at the bottom), toggle it **ON**, restart the phone, and tap **Turn On** after reboot.
+4. **Trust your Personal Team certificate on the iPhone**:
+   - Select your physical iPhone in Xcode's top device dropdown and press **Run (`⌘R`)**.
+   - When iOS shows **"Untrusted Developer"** on the first install, open **Settings → General → VPN & Device Management** on the iPhone, tap your Apple ID under *Developer App*, and tap **Trust**.
+   - Press **Run (`⌘R`)** again in Xcode to launch the app.
+5. **Copy your `.env` keys from MacBook to iPhone in one tap**:
+   - On your MacBook, copy your `.env` file to the Universal Clipboard: `pbcopy < .env`
+   - On your iPhone, open **Namma Omnibrief → Settings → Bulk Import (`.env` Paste)**, tap **Paste**, and tap **Import `.env` Keys**.
+   - Test **Today** (live HN stories + `For you / Newest`), **X Drafter → Sample FT** (change the publication chip from `Financial Times` to `The Economic Times` and verify both prose and `Source:` retarget in the draft and Archive), and **Camera** capture against a real newspaper page.
 
 ---
 

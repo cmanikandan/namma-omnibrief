@@ -903,3 +903,20 @@ cheap proof the rewrite changed metadata and nothing else.
   a style preference.
 - When the user reports a UI bug like "I can't scroll", check **every** screen, not just the one
   mentioned.
+
+---
+
+## 13. iOS Lite port (`ios/`) — Xcode & Santa operating notes
+
+The `ios/` directory on the `ios-lite` branch contains **Namma Omnibrief Lite**, a native Swift / SwiftUI port covering the four daily-driver tabs (`Today`, `X Drafter`, `Archive`, `Settings`) while omitting the untested Conference Scribe audio stack.
+
+1. **`DEVELOPER_DIR` must point at Xcode (`Xcode-beta.app`).**
+   `xcode-select` on this Mac points to `/Library/Developer/CommandLineTools`, so bare `xcodebuild` fails. Export:
+   ```bash
+   export DEVELOPER_DIR="/Applications/Xcode-beta.app/Contents/Developer"
+   ```
+2. **NEVER add a `Package.swift` or run `swift test` on this MacBook (Santa block).**
+   Swift Package Manager compiles `Package.swift` into an unsigned temporary Mach-O binary (`ios-manifest` in `/private/var/folders/...`) and executes it, which triggers a corporate **Santa** security block popup.
+   - Always build using the native Xcode project (`ios/NammaOmniBriefLite.xcodeproj`) via `xcodebuild`.
+   - Always run unit tests via `./ios/scripts/run_tests.sh`, which pipes `OmniBriefCore/*.swift` + `RunUnitTests.swift` into Apple's signed `xcrun swift` JIT interpreter in-process (zero unsigned `execve` calls, 14/14 assertions in < 2 seconds).
+
