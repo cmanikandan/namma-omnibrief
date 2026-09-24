@@ -1,15 +1,10 @@
 import Foundation
 
-/// Santa-safe JIT Test Harness for Namma Omnibrief Lite (iOS).
+/// Unit test harness for Namma Omnibrief Lite (iOS).
 ///
-/// Why this exists (documented in AGENTS.md):
-/// On a Google corporate MacBook (gMac) with Santa enabled, `swift test` / SwiftPM compiles
-/// `Package.swift` into an unsigned temporary binary (`ios-manifest` in `/var/folders/...`) and
-/// executes it, which triggers a Santa block popup.
-///
-/// Running `OmniBriefCore` + this test suite inside Apple's signed `xcrun swift` JIT interpreter
-/// executes entirely in-process inside the Apple-signed `swift-frontend` binary — zero unsigned
-/// binaries are spawned, so Santa never blocks it, and all 14 domain assertions run in <1 second.
+/// Run with `./ios/scripts/run_tests.sh`, which concatenates the `OmniBriefCore` sources with this
+/// file and executes them with `xcrun swift`. No package manifest, test target or simulator is
+/// needed, so the whole suite runs in about two seconds.
 
 struct TestRunner {
     var passed = 0
@@ -39,7 +34,7 @@ struct TestRunner {
 struct OmniBriefJITTestMain {
     static func main() {
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        print("🧪 Namma Omnibrief Lite (iOS) — Automated Unit Test Suite (Santa-Safe)")
+        print("🧪 Namma Omnibrief Lite (iOS) — Automated Unit Test Suite")
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
         var runner = TestRunner()

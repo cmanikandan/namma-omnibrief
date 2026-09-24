@@ -53,7 +53,7 @@ Android yet either, so porting it now would mean porting something unverified.
 
 | Android | iOS equivalent | Notes |
 |---|---|---|
-| Android Studio | **Xcode** | Here it is installed as `/Applications/Xcode-beta.app` |
+| Android Studio | **Xcode** | Free from the Mac App Store |
 | Gradle (`build.gradle.kts`) | **Xcode project** (`NammaOmniBriefLite.xcodeproj`) | Build settings live in the project file; edit them in Xcode's UI, not by hand |
 | `./gradlew assembleDebug` | `xcodebuild … build` | See Part 3 |
 | Emulator (AVD) | **iOS Simulator** | Bundled with Xcode; runtimes downloaded separately |
@@ -114,31 +114,32 @@ team in Xcode.
 
 ### 1.1 Xcode
 
-Xcode is already installed at `/Applications/Xcode-beta.app` (Xcode 27, iOS 27 SDK). Open it once
-from Finder so it can finish installing its components, and accept the licence.
+Install **Xcode** from the Mac App Store (a beta from developer.apple.com also works; it installs as
+`Xcode-beta.app`). Open it once so it can finish installing its components, and accept the licence.
 
-The command-line tools on this Mac point at a stripped-down toolchain, so terminal commands need to
-be told where Xcode is. Either export this in every terminal session:
+Check the terminal can find it:
 
 ```bash
-export DEVELOPER_DIR="/Applications/Xcode-beta.app/Contents/Developer"
+xcodebuild -version
+```
+
+If that fails with *"tool 'xcodebuild' requires Xcode, but active developer directory … is a command
+line tools instance"*, the terminal is pointed at the standalone Command Line Tools. Either export
+this in each terminal session:
+
+```bash
+export DEVELOPER_DIR="/Applications/Xcode.app/Contents/Developer"   # or Xcode-beta.app
 ```
 
 or switch the system default once (needs your Mac password):
 
 ```bash
-sudo xcode-select -s /Applications/Xcode-beta.app/Contents/Developer
-```
-
-Check it worked:
-
-```bash
-xcodebuild -version        # → Xcode 27.0
+sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
 ```
 
 ### 1.2 Simulator runtime (only needed for Part 3)
 
-This Mac currently has **no iOS Simulator runtimes installed**, so the Simulator will show no
+A fresh Xcode may have **no iOS Simulator runtime installed**, in which case the Simulator shows no
 devices. Download one (several GB) either from **Xcode → Settings → Components → iOS** or:
 
 ```bash
@@ -150,18 +151,6 @@ xcrun simctl list devices available | grep iPhone    # should now list iPhones
 
 **Xcode → Settings… (⌘,) → Accounts → ＋ → Apple ID** and sign in. Any Apple ID works; the one on
 your iPhone is simplest.
-
-> [!WARNING]
-> This is a Google-managed MacBook. Signing a personal Apple ID into Xcode for a personal project is
-> common, but check it is acceptable under your device policy. Keychain items created for the
-> signing certificate live in your login keychain.
-
-### 1.4 Corporate MacBook: do not use `swift test` here
-
-Santa (the binary allow-listing tool on corporate Macs) blocks the unsigned helper binary that Swift
-Package Manager compiles from a `Package.swift`. You will see a popup naming `ios-manifest`. That is
-why this project has **no `Package.swift`** and runs tests with a script instead (Part 2). If you ever
-see that popup, click **Dismiss** — nothing is harmed, the build simply did not run.
 
 ---
 
@@ -184,8 +173,8 @@ does not need a screen:
 - the 10-item archive rollover and in-place source rewrite;
 - X token expiry logic, the `.env` import parser, and **no hardcoded secrets**.
 
-How it works: the script feeds the source files into `xcrun swift`, Apple's signed interpreter, so no
-unsigned binary is ever produced and Santa stays quiet.
+How it works: the script feeds the `OmniBriefCore` sources and the test file into `xcrun swift`, so
+there is no test target or simulator to set up.
 
 Run it before every commit. It is the iOS counterpart of `./gradlew :app:testDebugUnitTest`.
 
@@ -196,7 +185,7 @@ Run it before every commit. It is the iOS counterpart of `./gradlew :app:testDeb
 ### From Xcode (easiest)
 
 ```bash
-open -a "/Applications/Xcode-beta.app" ios/NammaOmniBriefLite.xcodeproj
+open ios/NammaOmniBriefLite.xcodeproj
 ```
 
 1. In the toolbar at the top, click the device name next to **NammaOmniBriefLite** and choose an
@@ -213,7 +202,7 @@ Bulk Import box.
 ### From the terminal (build only — handy as a pre-commit check)
 
 ```bash
-export DEVELOPER_DIR="/Applications/Xcode-beta.app/Contents/Developer"
+# export DEVELOPER_DIR=... only if xcodebuild cannot find Xcode (Part 1.1)
 
 # Simulator build, unsigned
 xcodebuild -project ios/NammaOmniBriefLite.xcodeproj -scheme NammaOmniBriefLite \
@@ -396,7 +385,7 @@ To ship a fix: bump **Build**, Archive, Distribute. The phone offers the update 
 Once the GUI flow has worked once, the same thing can be scripted:
 
 ```bash
-export DEVELOPER_DIR="/Applications/Xcode-beta.app/Contents/Developer"
+# export DEVELOPER_DIR=... only if xcodebuild cannot find Xcode (Part 1.1)
 
 xcodebuild -project ios/NammaOmniBriefLite.xcodeproj -scheme NammaOmniBriefLite \
   -configuration Release -destination 'generic/platform=iOS' \
@@ -430,7 +419,7 @@ xcodebuild -exportArchive -archivePath /tmp/NammaOmniBriefLite.xcarchive \
 | **External TestFlight** | Up to 10,000 testers by email or public link | Needs a one-off Beta App Review. Only if you want others to try it |
 | **App Store** | Public release | Out of scope — needs privacy policy, screenshots, review, and your personal keys are per-user anyway |
 | **Mac "Designed for iPad"** | Apple-silicon Macs can run iPhone apps. Pick **My Mac (Designed for iPad)** in Xcode's device menu | Handy for quick checks without the Simulator; no camera flow |
-| **AltStore / SideStore** | Community tools that re-sign free Personal Team apps every 7 days automatically | Not recommended on a corporate Mac; same limits as option B |
+| **AltStore / SideStore** | Community tools that re-sign free Personal Team apps every 7 days automatically | Possible, but adds a third-party helper for the same limits as option B |
 | **Enterprise program** | In-house distribution for organisations | Not applicable to a personal app |
 
 ---
@@ -495,7 +484,7 @@ Things most likely to need attention, from reading the code:
 ios/
 ├── NammaOmniBriefLite.xcodeproj      # Open this in Xcode
 ├── README.md                          # This file
-├── scripts/run_tests.sh               # Santa-safe unit test runner
+├── scripts/run_tests.sh               # Unit test runner (xcrun swift)
 ├── Sources/
 │   ├── OmniBriefCore/                 # Pure logic, no UI — what the tests cover
 │   │   ├── Models.swift               # HeadlineItem, HeadlineSort, drafts, BriefItem
@@ -528,8 +517,7 @@ New files under `OmniBriefCore/` are picked up by `run_tests.sh` automatically.
 
 | Symptom | Cause and fix |
 |---|---|
-| `xcode-select: error: tool 'xcodebuild' requires Xcode` | `export DEVELOPER_DIR="/Applications/Xcode-beta.app/Contents/Developer"` (Part 1.1) |
-| Santa popup naming `ios-manifest` | Something ran `swift build`/`swift test`. Dismiss it and use `./ios/scripts/run_tests.sh` |
+| `xcode-select: error: tool 'xcodebuild' requires Xcode` | Point `DEVELOPER_DIR` at Xcode (Part 1.1) |
 | Simulator list is empty | No runtime installed — Part 1.2 |
 | *Failed to register bundle identifier* / *No profiles for …* | Change the Bundle Identifier to something unique (Part 4.1) |
 | *Signing for "NammaOmniBriefLite" requires a development team* | Pick a Team in Signing & Capabilities |
@@ -554,7 +542,7 @@ Honest status as of the first commit on the `ios-lite` branch:
 - **Not yet verified:** running on a real iPhone, live Gemini and X calls from iOS, camera capture.
   That is what the shakedown is for.
 - `Tests/OmniBriefCoreTests/OmniBriefCoreTests.swift` is an XCTest version of the same tests, kept
-  for the day this runs on a machine without Santa. It is **not** wired into the Xcode project, so
+  for when a Unit Test target is added. It is **not** wired into the Xcode project yet, so
   **⌘U does nothing yet**. Adding a Unit Test target in Xcode and including that file would enable it.
 - No app icon (blocks TestFlight only — Part 7.1).
 - Keys in `UserDefaults` rather than Keychain; no hourly Today refresh; no Conference Reporter.

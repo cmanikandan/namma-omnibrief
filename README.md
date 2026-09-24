@@ -780,9 +780,8 @@ placeholder, so there is nothing meaningful to run yet.
 
 Covers source retargeting (the Android `SourceRetargetTest` cases, ported), Today sorting and story
 ages, Hacker News ranking and the diversity cap, archive splitting and rollover, token expiry and the
-no-hardcoded-secrets invariant. On a corporate Mac use this script, **not** `swift test` — see
-[ios/README.md → Part 1.4](ios/README.md#14-corporate-macbook-do-not-use-swift-test-here). The
-iPhone smoke-test checklist is in [Part 9](ios/README.md#part-9--a-few-weeks-shakedown-plan).
+no-hardcoded-secrets invariant. The iPhone smoke-test checklist is in
+[ios/README.md → Part 9](ios/README.md#part-9--a-few-weeks-shakedown-plan).
 
 ---
 
@@ -928,20 +927,16 @@ It has no third-party dependencies and mirrors the Android code structure file f
 ### Build and test in 30 seconds
 
 ```bash
-export DEVELOPER_DIR="/Applications/Xcode-beta.app/Contents/Developer"   # Xcode is not the system default here
+export DEVELOPER_DIR="/Applications/Xcode.app/Contents/Developer"   # only if xcodebuild can't find Xcode
 
 ./ios/scripts/run_tests.sh                                                # 14 unit tests, ~2 s
 
 xcodebuild -project ios/NammaOmniBriefLite.xcodeproj -scheme NammaOmniBriefLite \
   -sdk iphonesimulator CODE_SIGNING_ALLOWED=NO -derivedDataPath /tmp/omnibrief-ios-derived build
 
-open -a "/Applications/Xcode-beta.app" ios/NammaOmniBriefLite.xcodeproj  # then ⌘R
+open ios/NammaOmniBriefLite.xcodeproj                              # then ⌘R in Xcode
 ```
 
-> [!IMPORTANT]
-> On a Google corporate Mac, **never run `swift test` / `swift build`** here. Swift Package Manager
-> compiles an unsigned helper (`ios-manifest`) that Santa blocks. That is why there is no
-> `Package.swift` and tests run through `run_tests.sh`, which uses Apple's signed interpreter.
 
 ### Getting it onto your iPhone — the options
 

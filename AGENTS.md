@@ -906,17 +906,22 @@ cheap proof the rewrite changed metadata and nothing else.
 
 ---
 
-## 13. iOS Lite port (`ios/`) — Xcode & Santa operating notes
+## 13. iOS Lite port (`ios/`)
 
-The `ios/` directory on the `ios-lite` branch contains **Namma Omnibrief Lite**, a native Swift / SwiftUI port covering the four daily-driver tabs (`Today`, `X Drafter`, `Archive`, `Settings`) while omitting the untested Conference Scribe audio stack.
+The `ios/` directory on the `ios-lite` branch contains **Namma Omnibrief Lite**, a native Swift /
+SwiftUI port covering the four daily-driver tabs (`Today`, `X Drafter`, `Archive`, `Settings`). The
+Conference Reporter is deliberately not ported.
 
-1. **`DEVELOPER_DIR` must point at Xcode (`Xcode-beta.app`).**
-   `xcode-select` on this Mac points to `/Library/Developer/CommandLineTools`, so bare `xcodebuild` fails. Export:
+1. **Point `DEVELOPER_DIR` at Xcode** if `xcode-select` points at the standalone Command Line Tools,
+   otherwise `xcodebuild` fails:
    ```bash
-   export DEVELOPER_DIR="/Applications/Xcode-beta.app/Contents/Developer"
+   export DEVELOPER_DIR="/Applications/Xcode.app/Contents/Developer"   # or Xcode-beta.app
    ```
-2. **NEVER add a `Package.swift` or run `swift test` on this MacBook (Santa block).**
-   Swift Package Manager compiles `Package.swift` into an unsigned temporary Mach-O binary (`ios-manifest` in `/private/var/folders/...`) and executes it, which triggers a corporate **Santa** security block popup.
-   - Always build using the native Xcode project (`ios/NammaOmniBriefLite.xcodeproj`) via `xcodebuild`.
-   - Always run unit tests via `./ios/scripts/run_tests.sh`, which pipes `OmniBriefCore/*.swift` + `RunUnitTests.swift` into Apple's signed `xcrun swift` JIT interpreter in-process (zero unsigned `execve` calls, 14/14 assertions in < 2 seconds).
-
+2. **The Xcode project is the only build definition.** There is no `Package.swift`; do not add one.
+   Build with `xcodebuild` against `ios/NammaOmniBriefLite.xcodeproj`, and run unit tests with
+   `./ios/scripts/run_tests.sh` (14 tests, ~2 s, via `xcrun swift`).
+3. **New Swift files must be added to the Xcode target** (create them from Xcode, or add a
+   `PBXFileReference` + `PBXBuildFile` + group entry + Sources phase entry by hand). Files under
+   `OmniBriefCore/` are picked up by `run_tests.sh` automatically.
+4. **Keep parity deliberate.** The Gemini prompt, the HN interest weights and the source-retarget
+   rules are copied from the Android code. Change both platforms together.

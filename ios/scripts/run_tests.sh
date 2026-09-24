@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Santa-safe unit test runner for Namma Omnibrief Lite (iOS)
-# Executes all OmniBriefCore Swift source files + RunUnitTests.swift inside Apple's signed
-# xcrun swift JIT interpreter so zero unsigned Mach-O binaries are spawned on gMac/Santa.
+# Unit test runner for Namma Omnibrief Lite (iOS).
+# Concatenates the OmniBriefCore sources with Tests/RunUnitTests.swift and runs them with
+# `xcrun swift`. Uses Xcode.app if present, otherwise Xcode-beta.app, unless DEVELOPER_DIR is set.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 IOS_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
