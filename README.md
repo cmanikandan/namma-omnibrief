@@ -1,6 +1,7 @@
 # Namma Omnibrief
 
-A personal Android app for turning what you read and what you attend into publishable output.
+A personal Android app — now with an **iOS companion** — for turning what you read and what you
+attend into publishable output.
 
 Point your camera at a newspaper article, a magazine spread, or a screenshot and Gemini drafts a
 ready-to-post summary for X — grounded strictly in what is actually in the image, with the correct
@@ -9,6 +10,11 @@ yourself in seconds.
 
 Built with Jetpack Compose, a single-Activity architecture, and a light, high-contrast UI with a
 Bengaluru identity.
+
+| Platform | Where | Status |
+|---|---|---|
+| **Android** | [`app/`](app/) | The full app, in daily use on a Pixel 10 |
+| **iOS — Namma Omnibrief Lite** | [`ios/`](ios/) (branch `ios-lite`) | SwiftUI port of Today, X Drafter, Archive and Settings. Unit tested and building; real-iPhone shakedown in progress. **Start with [ios/README.md](ios/README.md)** |
 
 > Working on this codebase (human or AI)? Read [AGENTS.md](AGENTS.md) first — it documents the build
 > prerequisites, the secrets policy and several non-obvious constraints.
@@ -19,6 +25,9 @@ Bengaluru identity.
 
 **New here?** Read [Getting started with Android Studio](#getting-started-with-android-studio), then
 [Adding your keys](#adding-your-keys). That is everything you need to run the app.
+
+**On an iPhone?** Read [Running on iOS](#running-on-ios-namma-omnibrief-lite) for the summary, then
+[ios/README.md](ios/README.md) for the step-by-step guide (Simulator, free Apple ID, TestFlight).
 
 - [Features](#features)
 - [Screenshots](#screenshots)
@@ -687,6 +696,23 @@ app/src/main/java/com/example/
     └── viewmodel/               # MainViewModel
 ```
 
+### iOS (Namma Omnibrief Lite)
+
+The same shape, translated rather than reinvented, so a fix on one platform maps directly onto the
+other:
+
+| Layer | Android | iOS |
+|---|---|---|
+| UI | Jetpack Compose, `when`-based destinations | SwiftUI, `TabView` with four tabs |
+| State | One `MainViewModel` with `StateFlow`s | One `@MainActor` `MainViewModel` with `@Published` |
+| Persistence | Room + `SharedPreferences` | JSON file in `Documents/` (10-item FIFO) + `UserDefaults` |
+| Networking | OkHttp + `org.json` | `URLSession` + `JSONSerialization`, no dependencies |
+| Pure logic | Companion functions (`retargetSource`, `HeadlineSort.apply`) | `OmniBriefCore`: `SourceRetargeter`, `HeadlineSort`, `HackerNewsClient.rankAndSelectDiverse` |
+| Gemini prompt | 8 rules in `GeminiApiService` | Same 8 rules, copied verbatim into `GeminiClient.buildArticlePrompt` |
+| Export | Share intents | `ShareLink` (Mail, Drive, Notes, AirDrop) |
+
+When a prompt rule or ranking constant changes on one side, change it on the other too.
+
 
 ---
 
@@ -745,6 +771,18 @@ staying grounded, but verifying beats assuming.
 
 `./gradlew :app:connectedAndroidTest` runs on-device tests, but this project has only the default
 placeholder, so there is nothing meaningful to run yet.
+
+### iOS tests
+
+```bash
+./ios/scripts/run_tests.sh      # 14 tests, ~2 seconds
+```
+
+Covers source retargeting (the Android `SourceRetargetTest` cases, ported), Today sorting and story
+ages, Hacker News ranking and the diversity cap, archive splitting and rollover, token expiry and the
+no-hardcoded-secrets invariant. On a corporate Mac use this script, **not** `swift test` — see
+[ios/README.md → Part 1.4](ios/README.md#14-corporate-macbook-do-not-use-swift-test-here). The
+iPhone smoke-test checklist is in [Part 9](ios/README.md#part-9--a-few-weeks-shakedown-plan).
 
 ---
 
@@ -867,76 +905,72 @@ recruiting a dozen people.
 
 ## Running on iOS (Namma Omnibrief Lite)
 
-The [`ios/`](ios/) directory contains **Namma Omnibrief Lite**, a native Swift / SwiftUI port of the app designed to run on iOS 17+ (iPhone and iOS Simulator). See [`ios/README.md`](ios/README.md) for the full technical notes.
+[`ios/`](ios/) holds **Namma Omnibrief Lite**, a native Swift / SwiftUI port for iPhone (iOS 17+).
+It has no third-party dependencies and mirrors the Android code structure file for file.
 
-### Why a "Lite" edition for iOS?
+> [!TIP]
+> **New to iOS development?** [ios/README.md](ios/README.md) is a step-by-step guide written for
+> exactly that: an Android → iOS cheat sheet, Simulator, installing on your own iPhone with a free
+> Apple ID, wireless installs, the paid program, TestFlight, debugging, and a few-weeks shakedown
+> checklist. This section is only the summary.
 
-The iOS port mirrors the **four daily-driver tabs** used on the Android handset — **Today** (keyless Algolia Hacker News Top 10 ranked by your interests), **X Drafter** (Camera / Photo Library up to 10 images, Gemini 8-rule grounded analysis, Source Override with prose + `Source:` + Archive retargeting, and OAuth 2.0 / web intent publishing), **Archive** (10-item FIFO rollover + Share sheet), and **Settings** (5-step live Text Size scaling, model selector, and `.env` bulk paste import).
+### What is in it
 
-It intentionally omits the Conference Scribe live audio/slide recording stack so the iOS codebase stays zero-dependency, compiles in seconds, and provisions cleanly on a free personal Apple ID.
+| Tab | Parity with Android |
+|---|---|
+| **Today** | Same Algolia query terms, interest weights (600 / 250), diversity cap of 3, For you / Newest, story ages. Adds pull-to-refresh |
+| **X Drafter** | Camera / Photos (10-image cap), Sample FT, the same 8-rule Gemini prompt and model fallback chain, `Main topic analysed`, source override that rewrites draft + `Source:` + Archive, 280-char pre-flight guard, OAuth 2.0 posting with photo upload, Open in X App |
+| **Archive** | 10-item FIFO, reopen in drafter, system share sheet |
+| **Settings** | 5-step text size, model picker, X credentials, `.env` Bulk Import |
 
-### 1. Running the iOS Unit Tests from the Command Line
+**Left out:** the Conference Reporter, which has not been exercised on Android yet either.
+
+### Build and test in 30 seconds
+
+```bash
+export DEVELOPER_DIR="/Applications/Xcode-beta.app/Contents/Developer"   # Xcode is not the system default here
+
+./ios/scripts/run_tests.sh                                                # 14 unit tests, ~2 s
+
+xcodebuild -project ios/NammaOmniBriefLite.xcodeproj -scheme NammaOmniBriefLite \
+  -sdk iphonesimulator CODE_SIGNING_ALLOWED=NO -derivedDataPath /tmp/omnibrief-ios-derived build
+
+open -a "/Applications/Xcode-beta.app" ios/NammaOmniBriefLite.xcodeproj  # then ⌘R
+```
 
 > [!IMPORTANT]
-> **Google Corporate MacBook (Santa) Note:**
-> Do **not** use `Package.swift` / `swift test` on a corporate MacBook running **Santa**. SwiftPM compiles `Package.swift` into an unsigned temporary host binary (`ios-manifest` in `/private/var/folders/...`), which Santa blocks.
->
-> Instead, run `./ios/scripts/run_tests.sh`. It executes the entire `OmniBriefCore` domain layer and all 14 unit tests in-process inside Apple's signed `xcrun swift` JIT interpreter — zero unsigned binaries are spawned and Santa never prompts.
+> On a Google corporate Mac, **never run `swift test` / `swift build`** here. Swift Package Manager
+> compiles an unsigned helper (`ios-manifest`) that Santa blocks. That is why there is no
+> `Package.swift` and tests run through `run_tests.sh`, which uses Apple's signed interpreter.
 
-```bash
-# Run all 14 iOS unit tests (< 2 seconds, Santa-safe):
-./ios/scripts/run_tests.sh
-```
+### Getting it onto your iPhone — the options
 
-### 2. Building the iOS App from Terminal (`xcodebuild`)
+iOS only runs apps signed with Apple-issued credentials. Every option is a choice of signature and
+how long it lasts:
 
-If Xcode is installed as `/Applications/Xcode-beta.app` (rather than `/Applications/Xcode.app`), set `DEVELOPER_DIR` when calling `xcodebuild`:
+| Option | Cost | Keeps working for | Guide |
+|---|---|---|---|
+| **Simulator** | Free | n/a — on the Mac, no camera | [Part 3](ios/README.md#part-3--run-it-in-the-ios-simulator) |
+| **Xcode + free Apple ID** | Free | **7 days**, then ⌘R again (data kept) | [Part 4](ios/README.md#part-4--install-on-your-iphone-with-a-free-apple-id) |
+| **Xcode + paid Developer Program** | US$99/yr | 1 year | [Part 6](ios/README.md#part-6--the-paid-apple-developer-program) |
+| **TestFlight** | Same paid program | 90 days per build, over-the-air updates, built-in feedback | [Part 7](ios/README.md#part-7--testflight) |
 
-```bash
-export DEVELOPER_DIR="/Applications/Xcode-beta.app/Contents/Developer"
+**Recommended for a few-weeks shakedown:** start with the free Apple ID (you will be rebuilding
+often in week one anyway). Move to TestFlight if the weekly reinstall gets tiresome or you want the
+phone to stop depending on the Mac. TestFlight also needs a 1024×1024 app icon, which the project
+does not have yet — see [Part 7.1](ios/README.md#71-before-your-first-upload--add-an-app-icon-required).
 
-# Build for iOS Simulator (unsigned verification):
-xcodebuild -project ios/NammaOmniBriefLite.xcodeproj \
-  -scheme NammaOmniBriefLite \
-  -sdk iphonesimulator \
-  -configuration Debug \
-  CODE_SIGNING_ALLOWED=NO \
-  -derivedDataPath /tmp/omnibrief-ios-derived \
-  build
+The first free install in short: open the project → target **Signing & Capabilities** → pick your
+**Personal Team** and a unique **Bundle Identifier** → plug in the iPhone and **Trust** the Mac →
+enable **Developer Mode** on the phone → **⌘R** → on the phone trust your certificate under
+**Settings → General → VPN & Device Management** → **⌘R** again. Then `pbcopy < .env` on the Mac and
+paste into **Settings → Bulk Import** on the phone.
 
-# Build for physical iPhone arm64 (unsigned compile verification):
-xcodebuild -project ios/NammaOmniBriefLite.xcodeproj \
-  -scheme NammaOmniBriefLite \
-  -sdk iphoneos \
-  -configuration Debug \
-  CODE_SIGNING_ALLOWED=NO \
-  -derivedDataPath /tmp/omnibrief-ios-derived \
-  build
-```
+### Status
 
-### 3. How to Install & Test on a Real iPhone
-
-You can install and test **Namma Omnibrief Lite** on your own iPhone using any free personal Apple ID (no paid $99/year Apple Developer Program membership required):
-
-1. **Open the project in Xcode**:
-   ```bash
-   open -a "/Applications/Xcode-beta.app" ios/NammaOmniBriefLite.xcodeproj
-   ```
-2. **Add your Apple ID & Personal Team signing**:
-   - Open **Xcode → Settings… (`⌘,`) → Accounts**, click **＋ → Apple ID**, and sign in.
-   - Click `NammaOmniBriefLite` in Xcode's left Project Navigator → select the **`NammaOmniBriefLite`** target → open **Signing & Capabilities**.
-   - Check **Automatically manage signing**, choose **`<Your Name> (Personal Team)`**, and change **Bundle Identifier** to a unique value (for example, `com.<yourname>.omnibrief.ioslite`).
-3. **Enable Developer Mode on your iPhone (one-time setup on iOS 16/17/18+)**:
-   - Plug your iPhone into your MacBook via USB-C and tap **Trust This Computer** on the handset.
-   - On the iPhone, go to **Settings → Privacy & Security → Developer Mode** (at the bottom), toggle it **ON**, restart the phone, and tap **Turn On** after reboot.
-4. **Trust your Personal Team certificate on the iPhone**:
-   - Select your physical iPhone in Xcode's top device dropdown and press **Run (`⌘R`)**.
-   - When iOS shows **"Untrusted Developer"** on the first install, open **Settings → General → VPN & Device Management** on the iPhone, tap your Apple ID under *Developer App*, and tap **Trust**.
-   - Press **Run (`⌘R`)** again in Xcode to launch the app.
-5. **Copy your `.env` keys from MacBook to iPhone in one tap**:
-   - On your MacBook, copy your `.env` file to the Universal Clipboard: `pbcopy < .env`
-   - On your iPhone, open **Namma Omnibrief → Settings → Bulk Import (`.env` Paste)**, tap **Paste**, and tap **Import `.env` Keys**.
-   - Test **Today** (live HN stories + `For you / Newest`), **X Drafter → Sample FT** (change the publication chip from `Financial Times` to `The Economic Times` and verify both prose and `Source:` retarget in the draft and Archive), and **Camera** capture against a real newspaper page.
+Verified: 14/14 unit tests, clean unsigned Simulator and device builds. **Not yet verified:** a run
+on a real iPhone, live Gemini/X calls from iOS, and camera capture — that is what the shakedown is
+for. Known gaps are listed at the end of [ios/README.md](ios/README.md#known-gaps).
 
 ---
 
