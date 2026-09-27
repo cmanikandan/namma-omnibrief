@@ -6,8 +6,8 @@ This guide assumes **no prior iOS experience**. If you have built Android apps b
 [Android → iOS cheat sheet](#android--ios-cheat-sheet) maps the concepts you already know.
 
 > [!NOTE]
-> Working on the code with an AI agent? [AGENTS.md §13](../AGENTS.md) holds the terse version of
-> the build quirks on this machine. This file is the long, human version.
+> Working on the code with an AI agent? [ios/AGENTS.md](AGENTS.md) holds the terse operating notes
+> (build gate, conventions, Android parity). This file is the long, human version.
 
 ---
 

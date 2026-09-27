@@ -910,7 +910,8 @@ cheap proof the rewrite changed metadata and nothing else.
 
 The `ios/` directory on the `ios-lite` branch contains **Namma Omnibrief Lite**, a native Swift /
 SwiftUI port covering the four daily-driver tabs (`Today`, `X Drafter`, `Archive`, `Settings`). The
-Conference Reporter is deliberately not ported.
+Conference Reporter is deliberately not ported. Full iOS operating notes live in
+[`ios/AGENTS.md`](ios/AGENTS.md); the points below are the short version.
 
 1. **Point `DEVELOPER_DIR` at Xcode** if `xcode-select` points at the standalone Command Line Tools,
    otherwise `xcodebuild` fails:
