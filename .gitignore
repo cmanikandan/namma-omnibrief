@@ -23,5 +23,6 @@ xcuserdata/
 DerivedData/
 .build/
 .swiftpm/
-*.xcworkspace/xcuserdata/
+*.xcworkspace/
+project.xcworkspace/
 

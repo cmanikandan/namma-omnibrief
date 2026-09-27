@@ -158,7 +158,7 @@ The root policy applies in full — the repository is public.
 - **Not verified:** anything on a real iPhone — live Gemini and X calls, camera capture, layout at
   every text size. The user is running a multi-week on-device shakedown; the checklist is in
   README.md Part 9.
-- No app icon (blocks TestFlight upload only).
+- App icon: 1024x1024 universal icon in Assets.xcassets/AppIcon.appiconset (from Android asset).
 - `OmniBriefCoreTests.swift` is not attached to an XCTest target, so ⌘U does nothing.
 - No Keychain, no hourly Today refresh, no Conference Reporter.
 

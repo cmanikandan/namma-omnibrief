@@ -181,14 +181,16 @@ public final class XClient: Sendable {
         onTokenRefreshed: (@Sendable (String, String, Int64) -> Void)? = nil
     ) async -> XPostOutcome {
         var currentToken = accessToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        var currentRefreshToken = refreshToken.trimmingCharacters(in: .whitespacesAndNewlines)
         let canRefresh = !clientId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !refreshToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !currentRefreshToken.isEmpty
         let nowMillis = Int64(Date().timeIntervalSince1970 * 1000)
 
         if canRefresh && Self.needsRefresh(accessToken: currentToken, expiresAtMillis: accessTokenExpiresAtMillis, nowMillis: nowMillis) {
-            let refreshed = await refreshOAuth2Token(clientId: clientId, clientSecret: clientSecret, refreshToken: refreshToken)
+            let refreshed = await refreshOAuth2Token(clientId: clientId, clientSecret: clientSecret, refreshToken: currentRefreshToken)
             if refreshed.success {
                 currentToken = refreshed.accessToken
+                currentRefreshToken = refreshed.refreshToken
                 onTokenRefreshed?(refreshed.accessToken, refreshed.refreshToken, refreshed.expiresIn)
             } else if currentToken.isEmpty {
                 return .failure(message: "Could not obtain X access token: \(refreshed.error ?? "Unknown error")")
@@ -201,7 +203,21 @@ public final class XClient: Sendable {
 
         var mediaIds: [String] = []
         if let jpegData = imageJpegData {
-            switch await uploadImage(accessToken: currentToken, jpegData: jpegData) {
+            var uploadResult = await uploadImage(accessToken: currentToken, jpegData: jpegData)
+            if case .failure(let err) = uploadResult,
+               (err.localizedDescription.contains("401") || err.localizedDescription.localizedCaseInsensitiveContains("Unauthorized")),
+               canRefresh {
+                let refreshed = await refreshOAuth2Token(clientId: clientId, clientSecret: clientSecret, refreshToken: currentRefreshToken)
+                if refreshed.success {
+                    currentToken = refreshed.accessToken
+                    currentRefreshToken = refreshed.refreshToken
+                    onTokenRefreshed?(refreshed.accessToken, refreshed.refreshToken, refreshed.expiresIn)
+                    uploadResult = await uploadImage(accessToken: currentToken, jpegData: jpegData)
+                } else {
+                    return .failure(message: "X session expired and token refresh failed: \(refreshed.error ?? "Unknown error"). Re-run tools/x_oauth_setup.py and paste the new tokens into Settings.")
+                }
+            }
+            switch uploadResult {
             case .success(let id):
                 mediaIds.append(id)
             case .failure(let err):
@@ -213,13 +229,14 @@ public final class XClient: Sendable {
         if case .failure(let msg) = firstAttempt,
            msg.localizedCaseInsensitiveContains("Unauthorized"),
            canRefresh {
-            let refreshed = await refreshOAuth2Token(clientId: clientId, clientSecret: clientSecret, refreshToken: refreshToken)
+            let refreshed = await refreshOAuth2Token(clientId: clientId, clientSecret: clientSecret, refreshToken: currentRefreshToken)
             if refreshed.success {
                 currentToken = refreshed.accessToken
+                currentRefreshToken = refreshed.refreshToken
                 onTokenRefreshed?(refreshed.accessToken, refreshed.refreshToken, refreshed.expiresIn)
                 return await executePost(accessToken: currentToken, text: text, mediaIds: mediaIds)
             } else {
-                return .failure(message: "X session expired and token refresh failed. Re-run tools/x_oauth_setup.py and paste the new tokens into Settings.")
+                return .failure(message: "X session expired and token refresh failed: \(refreshed.error ?? "Unknown error"). Re-run tools/x_oauth_setup.py and paste the new tokens into Settings.")
             }
         }
 
