@@ -46,6 +46,17 @@ public final class MainViewModel: ObservableObject {
     private var sourceIsUserOverride: Bool = false
     private var archivedArticleBriefId: UUID?
 
+    // Conference Reporter State
+    @Published public var confTitle: String = ""
+    @Published public var confTopic: String = ""
+    @Published public var confSpeaker: String = ""
+    @Published public var confPhotos: [UIImage] = []
+    @Published public var isGeneratingConferenceReport: Bool = false
+    @Published public var conferenceReportResult: ConferenceReportResult?
+    @Published public var conferenceError: String?
+    @Published public var conferenceSuccessMessage: String?
+    public let audioManager: AudioSessionManager = AudioSessionManager()
+
     // Archive / History (max 10 FIFO)
     @Published public var archivedBriefs: [BriefItem] = []
 
@@ -550,5 +561,188 @@ public final class MainViewModel: ObservableObject {
             image.draw(in: CGRect(origin: .zero, size: targetSize))
         }
         return normalized.jpegData(compressionQuality: 0.85)
+    }
+
+    // MARK: - Conference Reporter
+
+    public func addConferencePhoto(_ image: UIImage) {
+        confPhotos.append(image)
+        conferenceError = nil
+    }
+
+    public func removeConferencePhoto(at index: Int) {
+        guard confPhotos.indices.contains(index) else { return }
+        confPhotos.remove(at: index)
+    }
+
+    public func clearConferencePhotos() {
+        confPhotos.removeAll()
+    }
+
+    public func clearConferenceWorkspace() {
+        confTitle = ""
+        confTopic = ""
+        confSpeaker = ""
+        confPhotos.removeAll()
+        conferenceReportResult = nil
+        conferenceError = nil
+        conferenceSuccessMessage = nil
+        audioManager.discardRecording()
+    }
+
+    public func loadSampleConferenceSession() {
+        confTitle = "Google I/O Global Summit"
+        confTopic = "Gemini 3.5 & Next-Gen Multimodal Reasoning"
+        confSpeaker = "Sundar Pichai & Demis Hassabis"
+        conferenceError = nil
+        conferenceReportResult = ConferenceReportResult(
+            sessionTitle: "Google I/O: Next-Gen Multimodal Reasoning",
+            speaker: "Sundar Pichai & Demis Hassabis",
+            executiveSummary: "Comprehensive overview of 2M+ token high-context windows, real-time multimodal latency optimizations, and agentic workflows integrated into enterprise workflows.",
+            keyTakeaways: [
+                "2M token context enables entire codebases and hours of video analysis in a single prompt.",
+                "Sub-second multimodal response loops drastically improve mobile on-device assistants.",
+                "Sovereign data isolation models meet stringent healthcare and financial data compliance."
+            ],
+            slideInsights: [
+                "Architecture slide: unified multimodal encoder shared across text, vision and audio.",
+                "Benchmark slide: 40% latency reduction versus the previous generation."
+            ],
+            actionItems: [
+                "Audit internal knowledge bases for long-context ingestion.",
+                "Prototype multimodal visual document pipelines."
+            ],
+            fullReportMarkdown: """
+            # Conference Executive Brief: Google I/O Global Summit
+            **Session**: Gemini 3.5 & Next-Gen Multimodal Reasoning  
+            **Speaker**: Sundar Pichai & Demis Hassabis  
+
+            ## Executive Summary
+            Google I/O spotlighted major breakthroughs in high-context multimodal reasoning, reducing latency by 40% while expanding document analysis capabilities.
+
+            ## Key Takeaways
+            - 2M token context enables deep codebase and financial filings analysis.
+            - New enterprise guardrails for enterprise privacy.
+            - Multimodal agents natively processing video streams in real-time.
+
+            ## Slide Insights
+            - Unified architecture across text, audio, and visual embeddings.
+            - Direct edge compilation for mobile deployment.
+
+            ## Strategic Action Items
+            - Evaluate high-context models for corporate document analysis.
+            - Pilot real-time voice and visual assistance interfaces.
+
+            ---
+            *Synthesized by Namma Omnibrief*
+            """
+        )
+        conferenceSuccessMessage = "Loaded Google I/O keynote sample report."
+    }
+
+    public func loadBengaluruTechConferenceSample() {
+        confTitle = "Bengaluru Tech Summit 2026"
+        confTopic = "Autonomous Urban Transit & Sovereign AI Compute"
+        confSpeaker = "Dr. C. N. Ashwath Narayan & Tech Leaders"
+        conferenceError = nil
+        conferenceReportResult = ConferenceReportResult(
+            sessionTitle: "Bengaluru Tech Summit 2026: Sovereign AI & Autonomous Urban Infrastructure",
+            speaker: "Dr. C. N. Ashwath Narayan & Tech Leaders",
+            executiveSummary: "At BTS 2026, Karnataka inaugurated the 10,000-GPU 'Namma AI Grid' compute infrastructure and autonomous mobility algorithms deployed across Bengaluru's expanding Metro network. The session outlined how public-private partnerships in Karnataka are enabling localized Indic AI models while driving 100% renewable power data center development along the Devanahalli tech corridor.",
+            keyTakeaways: [
+                "10,000 GPUs dedicated for Bengaluru tech ecosystem startups and research institutions.",
+                "Namma Metro automated passenger load prediction reducing urban gridlock along Outer Ring Road (ORR).",
+                "Sovereign Kannada & Indic LLMs achieving benchmark parity on technical and legal reasoning.",
+                "Devanahalli Green Tech Corridor providing 100% renewable power to next-gen AI supercomputing centers."
+            ],
+            slideInsights: [
+                "Grid architecture: distributed micro-datacenters along Namma Metro Pink & Blue line stations.",
+                "Energy metrics: solar-first power management with 99.999% uptime."
+            ],
+            actionItems: [
+                "Participate in Namma AI Grid incubation cohort.",
+                "Evaluate Indic language APIs for localized customer support applications."
+            ],
+            fullReportMarkdown: """
+            # Conference Executive Brief: Bengaluru Tech Summit 2026
+            **Session**: Autonomous Urban Transit & Sovereign AI Compute  
+            **Speaker**: Dr. C. N. Ashwath Narayan & Tech Leaders  
+
+            ## Executive Summary
+            Karnataka unveiled sovereign compute infrastructure and AI urban mobility systems at BTS 2026, establishing Bengaluru as Asia's primary sovereign AI hub.
+
+            ## Key Takeaways
+            - 10,000 GPU cluster reserved for local startups and academia.
+            - Real-time AI transit balancing deployed along Outer Ring Road and Metro corridors.
+            - Open Indic language models tailored for Indian enterprise governance.
+
+            ## Slide Insights
+            - Real-time commuter load heatmaps optimizing bus and metro dispatch frequencies.
+            - Renewable energy integration across Devanahalli server farms.
+
+            ## Action Items
+            - Apply for GPU compute grants via Karnataka Innovation Technology Society.
+            - Test Kannada & Indic LLM endpoints on internal domain datasets.
+
+            ---
+            *Synthesized by Namma Omnibrief • Bengaluru*
+            """
+        )
+        conferenceSuccessMessage = "Loaded Bengaluru Tech Summit sample report."
+    }
+
+    public func synthesizeConferenceReport() async {
+        guard !isGeneratingConferenceReport else { return }
+
+        let hasPhotos = !confPhotos.isEmpty
+        let recordedURL = audioManager.stopRecording() ?? audioManager.recordedFileURL
+        let hasAudio = recordedURL != nil && FileManager.default.fileExists(atPath: recordedURL!.path)
+        let hasTopic = !confTopic.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+
+        guard hasPhotos || hasAudio || hasTopic else {
+            conferenceError = "Please add slide photos, record session audio, or enter a session topic."
+            return
+        }
+
+        isGeneratingConferenceReport = true
+        conferenceError = nil
+        conferenceSuccessMessage = nil
+
+        let photoBuffers = confPhotos.compactMap { Self.downscaledJpegData(from: $0) }
+        var audioBytes: Data? = nil
+        if let audioURL = recordedURL {
+            audioBytes = try? Data(contentsOf: audioURL)
+        }
+
+        do {
+            let report = try await geminiClient.generateConferenceReport(
+                apiKey: geminiApiKey,
+                modelName: geminiModel,
+                conferenceTitle: confTitle,
+                sessionTopic: confTopic,
+                speakerName: confSpeaker,
+                photoJpegBuffers: photoBuffers,
+                audioData: audioBytes,
+                audioMimeType: "audio/mp4"
+            )
+            self.conferenceReportResult = report
+            self.conferenceSuccessMessage = "Report synthesized successfully!"
+
+            // Save to Archive
+            let brief = BriefItem(
+                type: "CONFERENCE_REPORT",
+                title: report.sessionTitle,
+                content: report.fullReportMarkdown,
+                sourceOrSpeaker: "\(report.speaker) • \(confTitle.isEmpty ? "Conference" : confTitle)",
+                imageCount: confPhotos.count,
+                status: "Report"
+            )
+            _ = archiveStore.saveWithRollover(brief, maxLimit: 10)
+            archivedBriefs = archiveStore.loadAll()
+        } catch {
+            self.conferenceError = error.localizedDescription
+        }
+
+        isGeneratingConferenceReport = false
     }
 }

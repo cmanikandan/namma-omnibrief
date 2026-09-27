@@ -223,3 +223,32 @@ public struct BriefItem: Identifiable, Equatable, Codable, Sendable {
         self.status = status
     }
 }
+
+/// Result returned by Gemini multimodal Conference Intelligence report synthesis.
+public struct ConferenceReportResult: Equatable, Codable, Sendable {
+    public let sessionTitle: String
+    public let speaker: String
+    public let executiveSummary: String
+    public let keyTakeaways: [String]
+    public let slideInsights: [String]
+    public let actionItems: [String]
+    public let fullReportMarkdown: String
+
+    public init(
+        sessionTitle: String,
+        speaker: String = "",
+        executiveSummary: String = "",
+        keyTakeaways: [String] = [],
+        slideInsights: [String] = [],
+        actionItems: [String] = [],
+        fullReportMarkdown: String = ""
+    ) {
+        self.sessionTitle = sessionTitle
+        self.speaker = speaker
+        self.executiveSummary = executiveSummary
+        self.keyTakeaways = keyTakeaways
+        self.slideInsights = slideInsights
+        self.actionItems = actionItems
+        self.fullReportMarkdown = fullReportMarkdown
+    }
+}

@@ -212,6 +212,37 @@ struct OmniBriefJITTestMain {
             "14. XClient token expiry buffer, zero hardcoded secrets, and bulk .env import verified"
         )
 
+        // 7. Conference Report Prompt & JSON Parsing Tests
+        let confPrompt = GeminiClient.buildConferencePrompt(
+            conferenceTitle: "BTS 2026",
+            sessionTopic: "AI Grid",
+            speakerName: "Dr. Ashwath",
+            photoCount: 3,
+            hasAudio: true
+        )
+        let sampleConfJSON = """
+        {
+          "candidates": [{
+            "content": {
+              "parts": [{
+                "text": "```json\\n{\\n  \\"sessionTitle\\": \\"BTS 2026: Sovereign AI Grid\\",\\n  \\"speaker\\": \\"Dr. Ashwath\\",\\n  \\"executiveSummary\\": \\"Karnataka deployed 10,000 GPUs.\\",\\n  \\"keyTakeaways\\": [\\"10k GPUs deployed\\", \\"Kannada LLM\\"],\\n  \\"slideInsights\\": [\\"Slide 1: Architecture\\"],\\n  \\"actionItems\\": [\\"Integrate API\\"],\\n  \\"fullReportMarkdown\\": \\"# BTS 2026 Report\\\\n\\\\nKarnataka AI Grid.\\"\\n}\\n```"
+              }]
+            }
+          }]
+        }
+        """.data(using: .utf8)!
+        let parsedReport = try? GeminiClient.parseConferenceResult(from: sampleConfJSON, defaultTopic: "AI Grid", defaultSpeaker: "Dr. Ashwath")
+        runner.check(
+            confPrompt.contains("BTS 2026")
+                && confPrompt.contains("3 photos captured")
+                && confPrompt.contains("Live session audio recording attached")
+                && parsedReport?.sessionTitle == "BTS 2026: Sovereign AI Grid"
+                && parsedReport?.keyTakeaways.count == 2
+                && parsedReport?.slideInsights.count == 1
+                && parsedReport?.actionItems.count == 1,
+            "15. GeminiClient conference prompt formatting and multimodal JSON parsing verified"
+        )
+
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         print("Result: \(runner.passed) passed, \(runner.failed) failed")
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")

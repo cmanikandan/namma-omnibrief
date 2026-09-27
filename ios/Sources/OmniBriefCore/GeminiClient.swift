@@ -219,6 +219,164 @@ public final class GeminiClient: Sendable {
         )
     }
 
+    public static func buildConferencePrompt(
+        conferenceTitle: String,
+        sessionTopic: String,
+        speakerName: String,
+        photoCount: Int,
+        hasAudio: Bool
+    ) -> String {
+        var prompt = """
+        You are an executive conference intelligence scribe using high-context multimodal reasoning to synthesize a conference session into a comprehensive, boardroom-ready report.
+
+        SESSION METADATA:
+        Conference: \(conferenceTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Conference Session" : conferenceTitle)
+        Topic: \(sessionTopic.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Executive Presentation" : sessionTopic)
+        Speaker: \(speakerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Keynote Speaker" : speakerName)
+
+        INPUTS PROVIDED:
+        - Presentation slide photos: \(photoCount) photos captured.
+        """
+        if hasAudio {
+            prompt += "\n- Live session audio recording attached.\n"
+        }
+        prompt += """
+
+        TASK:
+        Thoroughly analyze all presentation slides (diagrams, bullet points, charts, statistics) and synthesize them with the spoken session arguments into a detailed briefing.
+        Return your output as a strict JSON object (no markdown fences) with keys:
+        {
+          "sessionTitle": "Clean title for the session",
+          "speaker": "Speaker name",
+          "executiveSummary": "2-3 paragraph executive summary of the session",
+          "keyTakeaways": ["takeaway 1", "takeaway 2", "takeaway 3", "takeaway 4"],
+          "slideInsights": ["Insight from slide/diagram 1", "Key data points from presentation"],
+          "actionItems": ["Strategic recommendation 1", "Action item 2"],
+          "fullReportMarkdown": "A fully formatted, beautiful Markdown report with headers (##), bold text, bullet points, ready to export or email."
+        }
+        """
+        return prompt
+    }
+
+    public func generateConferenceReport(
+        apiKey: String,
+        modelName: String,
+        conferenceTitle: String,
+        sessionTopic: String,
+        speakerName: String,
+        photoJpegBuffers: [Data],
+        audioData: Data?,
+        audioMimeType: String = "audio/mp4"
+    ) async throws -> ConferenceReportResult {
+        let cleanKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanKey.isEmpty else {
+            throw NSError(
+                domain: "GeminiClient",
+                code: 401,
+                userInfo: [NSLocalizedDescriptionKey: "Gemini API key is not configured. Please set your key in Settings."]
+            )
+        }
+
+        let prompt = Self.buildConferencePrompt(
+            conferenceTitle: conferenceTitle,
+            sessionTopic: sessionTopic,
+            speakerName: speakerName,
+            photoCount: photoJpegBuffers.count,
+            hasAudio: audioData != nil && !audioData!.isEmpty
+        )
+
+        var parts: [[String: Any]] = [
+            ["text": prompt]
+        ]
+
+        for jpeg in photoJpegBuffers {
+            parts.append([
+                "inlineData": [
+                    "mimeType": "image/jpeg",
+                    "data": jpeg.base64EncodedString()
+                ]
+            ])
+        }
+
+        if let audio = audioData, !audio.isEmpty {
+            parts.append([
+                "inlineData": [
+                    "mimeType": audioMimeType,
+                    "data": audio.base64EncodedString()
+                ]
+            ])
+        }
+
+        let requestPayload: [String: Any] = [
+            "contents": [
+                ["parts": parts]
+            ]
+        ]
+        let requestBody = try JSONSerialization.data(withJSONObject: requestPayload)
+
+        let responseData = try await callWithFallbacks(
+            apiKey: cleanKey,
+            preferredModel: modelName,
+            requestBody: requestBody
+        )
+
+        return try Self.parseConferenceResult(
+            from: responseData,
+            defaultTopic: sessionTopic,
+            defaultSpeaker: speakerName
+        )
+    }
+
+    public static func parseConferenceResult(
+        from data: Data,
+        defaultTopic: String,
+        defaultSpeaker: String
+    ) throws -> ConferenceReportResult {
+        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let candidates = root["candidates"] as? [[String: Any]],
+              let first = candidates.first,
+              let content = first["content"] as? [String: Any],
+              let parts = content["parts"] as? [[String: Any]],
+              let text = parts.first?["text"] as? String else {
+            throw NSError(domain: "GeminiClient", code: -2, userInfo: [NSLocalizedDescriptionKey: "Gemini returned an empty conference response."])
+        }
+
+        let fallbackTopic = defaultTopic.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Conference Intelligence Report" : defaultTopic
+        let fallbackSpeaker = defaultSpeaker.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Keynote Speaker" : defaultSpeaker
+
+        if let jsonSub = extractJsonSubstring(from: text),
+           let jsonData = jsonSub.data(using: .utf8),
+           let obj = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] {
+            let title = (obj["sessionTitle"] as? String) ?? fallbackTopic
+            let speaker = (obj["speaker"] as? String) ?? fallbackSpeaker
+            let execSummary = (obj["executiveSummary"] as? String) ?? ""
+            let keyTakeaways = (obj["keyTakeaways"] as? [String]) ?? []
+            let slideInsights = (obj["slideInsights"] as? [String]) ?? []
+            let actionItems = (obj["actionItems"] as? [String]) ?? []
+            let fullReport = (obj["fullReportMarkdown"] as? String) ?? text
+
+            return ConferenceReportResult(
+                sessionTitle: title,
+                speaker: speaker,
+                executiveSummary: execSummary,
+                keyTakeaways: keyTakeaways,
+                slideInsights: slideInsights,
+                actionItems: actionItems,
+                fullReportMarkdown: fullReport
+            )
+        }
+
+        return ConferenceReportResult(
+            sessionTitle: fallbackTopic,
+            speaker: fallbackSpeaker,
+            executiveSummary: text,
+            keyTakeaways: ["Key takeaways synthesized from slides and presentation audio."],
+            slideInsights: [],
+            actionItems: [],
+            fullReportMarkdown: text
+        )
+    }
+
     public static func extractJsonSubstring(from text: String) -> String? {
         guard let firstBrace = text.firstIndex(of: "{"),
               let lastBrace = text.lastIndex(of: "}"),

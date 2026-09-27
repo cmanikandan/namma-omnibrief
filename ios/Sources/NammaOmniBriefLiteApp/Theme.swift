@@ -17,6 +17,7 @@ public enum OmniTheme {
 public enum LiteDestination: String, CaseIterable, Identifiable {
     case today = "Today"
     case articleToX = "X Drafter"
+    case conference = "Conference"
     case archive = "Archive"
     case settings = "Settings"
 
@@ -26,6 +27,7 @@ public enum LiteDestination: String, CaseIterable, Identifiable {
         switch self {
         case .today: return "newspaper.fill"
         case .articleToX: return "doc.text.image.fill"
+        case .conference: return "mic.fill"
         case .archive: return "tray.full.fill"
         case .settings: return "slider.horizontal.3"
         }

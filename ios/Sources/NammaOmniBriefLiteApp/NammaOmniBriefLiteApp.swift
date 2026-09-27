@@ -24,6 +24,12 @@ public struct NammaOmniBriefLiteApp: App {
                         }
                         .tag(LiteDestination.articleToX)
 
+                    ConferenceReporterView(viewModel: viewModel)
+                        .tabItem {
+                            Label(LiteDestination.conference.rawValue, systemImage: LiteDestination.conference.systemIcon)
+                        }
+                        .tag(LiteDestination.conference)
+
                     ArchiveView(viewModel: viewModel)
                         .tabItem {
                             Label(LiteDestination.archive.rawValue, systemImage: LiteDestination.archive.systemIcon)

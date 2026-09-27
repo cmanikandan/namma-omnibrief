@@ -23,6 +23,8 @@
 		A100000E0000000000000001 /* ArchiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200000E0000000000000001 /* ArchiveView.swift */; };
 		A100000F0000000000000001 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200000F0000000000000001 /* SettingsView.swift */; };
 		A10000100000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000100000000000000001 /* Assets.xcassets */; };
+		A10000120000000000000001 /* AudioSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000120000000000000001 /* AudioSessionManager.swift */; };
+		A10000130000000000000001 /* ConferenceReporterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000130000000000000001 /* ConferenceReporterView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -44,6 +46,8 @@
 		A200000F0000000000000001 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/NammaOmniBriefLiteApp/Screens/SettingsView.swift; sourceTree = "<group>"; };
 		A20000100000000000000001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Sources/NammaOmniBriefLiteApp/Assets.xcassets; sourceTree = "<group>"; };
 		A20000110000000000000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Sources/NammaOmniBriefLiteApp/Info.plist; sourceTree = "<group>"; };
+		A20000120000000000000001 /* AudioSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/NammaOmniBriefLiteApp/AudioSessionManager.swift; sourceTree = "<group>"; };
+		A20000130000000000000001 /* ConferenceReporterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/NammaOmniBriefLiteApp/Screens/ConferenceReporterView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -86,9 +90,11 @@
 				A200000A0000000000000001 /* NammaOmniBriefLiteApp.swift */,
 				A20000090000000000000001 /* MainViewModel.swift */,
 				A20000080000000000000001 /* Theme.swift */,
+				A20000120000000000000001 /* AudioSessionManager.swift */,
 				A200000B0000000000000001 /* CameraPicker.swift */,
 				A200000C0000000000000001 /* TodayHeadlinesView.swift */,
 				A200000D0000000000000001 /* ArticleToXView.swift */,
+				A20000130000000000000001 /* ConferenceReporterView.swift */,
 				A200000E0000000000000001 /* ArchiveView.swift */,
 				A200000F0000000000000001 /* SettingsView.swift */,
 				A20000100000000000000001 /* Assets.xcassets */,
@@ -189,6 +195,8 @@
 				A100000D0000000000000001 /* ArticleToXView.swift in Sources */,
 				A100000E0000000000000001 /* ArchiveView.swift in Sources */,
 				A100000F0000000000000001 /* SettingsView.swift in Sources */,
+				A10000120000000000000001 /* AudioSessionManager.swift in Sources */,
+				A10000130000000000000001 /* ConferenceReporterView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
