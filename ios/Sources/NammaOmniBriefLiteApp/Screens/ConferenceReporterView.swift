@@ -1,6 +1,7 @@
 import SwiftUI
 import PhotosUI
 
+@MainActor
 public struct ConferenceReporterView: View {
     @ObservedObject var viewModel: MainViewModel
 
@@ -161,10 +162,12 @@ public struct ConferenceReporterView: View {
     }
 
     private var slidePhotosCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let fontScale = viewModel.fontScale
+
+        return VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("PRESENTATION SLIDES (\(viewModel.confPhotos.count))")
-                    .omniScaledFont(size: 11, weight: .bold, scale: viewModel.fontScale)
+                    .omniScaledFont(size: 11, weight: .bold, scale: fontScale)
                     .foregroundColor(OmniTheme.primaryTerracotta)
                 Spacer()
 
@@ -172,7 +175,7 @@ public struct ConferenceReporterView: View {
                     Button("Clear All") {
                         viewModel.clearConferencePhotos()
                     }
-                    .omniScaledFont(size: 10, weight: .semibold, scale: viewModel.fontScale)
+                    .omniScaledFont(size: 10, weight: .semibold, scale: fontScale)
                     .foregroundColor(OmniTheme.mutedSlate)
                 }
             }
@@ -185,7 +188,7 @@ public struct ConferenceReporterView: View {
                         Image(systemName: "camera.fill")
                         Text("Take Slide Photo")
                     }
-                    .omniScaledFont(size: 12, weight: .semibold, scale: viewModel.fontScale)
+                    .omniScaledFont(size: 12, weight: .semibold, scale: fontScale)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
                     .background(OmniTheme.subtleSurface)
@@ -202,7 +205,7 @@ public struct ConferenceReporterView: View {
                         Image(systemName: "photo.on.rectangle.angled")
                         Text("Pick from Photos")
                     }
-                    .omniScaledFont(size: 12, weight: .semibold, scale: viewModel.fontScale)
+                    .omniScaledFont(size: 12, weight: .semibold, scale: fontScale)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
                     .background(OmniTheme.subtleSurface)

@@ -1,6 +1,7 @@
 import PhotosUI
 import SwiftUI
 
+@MainActor
 public struct ArticleToXView: View {
     @ObservedObject var viewModel: MainViewModel
     @State private var showCamera: Bool = false
@@ -58,21 +59,24 @@ public struct ArticleToXView: View {
     }
 
     private var captureCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let imageCount = viewModel.articleImages.count
+        let fontScale = viewModel.fontScale
+
+        return VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("ARTICLE → X DRAFTER")
-                        .omniScaledFont(size: 11, weight: .bold, scale: viewModel.fontScale)
+                        .omniScaledFont(size: 11, weight: .bold, scale: fontScale)
                         .foregroundColor(OmniTheme.primaryTerracotta)
                     Text("Capture or Paste Newspaper Story")
-                        .omniScaledFont(size: 17, weight: .bold, scale: viewModel.fontScale)
+                        .omniScaledFont(size: 17, weight: .bold, scale: fontScale)
                         .foregroundColor(OmniTheme.deepInk)
                 }
                 Spacer()
                 Button("Start Fresh") {
                     viewModel.clearArticleWorkspace()
                 }
-                .omniScaledFont(size: 12, weight: .semibold, scale: viewModel.fontScale)
+                .omniScaledFont(size: 12, weight: .semibold, scale: fontScale)
                 .foregroundColor(OmniTheme.primaryTerracotta)
             }
 
@@ -81,7 +85,7 @@ public struct ArticleToXView: View {
                     showCamera = true
                 } label: {
                     Label("Camera", systemImage: "camera.fill")
-                        .omniScaledFont(size: 13, weight: .semibold, scale: viewModel.fontScale)
+                        .omniScaledFont(size: 13, weight: .semibold, scale: fontScale)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
                         .background(OmniTheme.primaryTerracotta)
@@ -91,11 +95,11 @@ public struct ArticleToXView: View {
 
                 PhotosPicker(
                     selection: $selectedPhotoItems,
-                    maxSelectionCount: max(1, AppPreferencesStore.maxArticleImages - viewModel.articleImages.count),
+                    maxSelectionCount: max(1, AppPreferencesStore.maxArticleImages - imageCount),
                     matching: .images
                 ) {
-                    Label("Photos (\(viewModel.articleImages.count)/10)", systemImage: "photo.on.rectangle")
-                        .omniScaledFont(size: 13, weight: .semibold, scale: viewModel.fontScale)
+                    Label("Photos (\(imageCount)/10)", systemImage: "photo.on.rectangle")
+                        .omniScaledFont(size: 13, weight: .semibold, scale: fontScale)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
                         .background(OmniTheme.subtleSurface)
@@ -107,7 +111,7 @@ public struct ArticleToXView: View {
                     viewModel.loadSampleArticle()
                 } label: {
                     Text("Sample FT")
-                        .omniScaledFont(size: 12, weight: .semibold, scale: viewModel.fontScale)
+                        .omniScaledFont(size: 12, weight: .semibold, scale: fontScale)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 10)
                         .background(OmniTheme.subtleSurface)
