@@ -911,3 +911,196 @@ public struct TodayHeadlinesView: View {
         )
     }
 }
+
+// MARK: - Standalone Nano-Banana Share Card & Image Renderer
+
+public struct NanoBananaShareCardView: View {
+    public let paper: ArxivGenAIPaper
+
+    public init(paper: ArxivGenAIPaper) {
+        self.paper = paper
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            // Header
+            HStack(alignment: .center) {
+                HStack(spacing: 8) {
+                    Text("🍌")
+                        .font(.system(size: 24))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("YenGuru • NANO-BANANA INFOGRAPHIC")
+                            .font(.system(size: 13, weight: .black))
+                            .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.12))
+                        Text("Trending arXiv GenAI Architecture Snapshot")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(Color(red: 0.45, green: 0.45, blue: 0.5))
+                    }
+                }
+                Spacer()
+                Text("cs.AI • Research Brief")
+                    .font(.system(size: 11, weight: .bold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Color(red: 0.77, green: 0.35, blue: 0.24).opacity(0.12))
+                    .foregroundColor(Color(red: 0.77, green: 0.35, blue: 0.24))
+                    .cornerRadius(6)
+            }
+
+            // Paper Title
+            Text(paper.title)
+                .font(.system(size: 20, weight: .bold))
+                .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.12))
+                .lineSpacing(3)
+
+            if !paper.authors.isEmpty {
+                Text(paper.authors.prefix(4).joined(separator: ", "))
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(Color(red: 0.45, green: 0.45, blue: 0.5))
+            }
+
+            Divider()
+
+            // 3-Block Architecture Breakdown
+            VStack(spacing: 8) {
+                // 1. Bottleneck
+                HStack(alignment: .top, spacing: 8) {
+                    Text("🛑")
+                        .font(.system(size: 16))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("LEGACY BOTTLENECK (THE WALL)")
+                            .font(.system(size: 10, weight: .black))
+                            .foregroundColor(Color(red: 0.85, green: 0.25, blue: 0.25))
+                        Text(paper.nanoBanana.beforeBottleneck)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(Color(red: 0.15, green: 0.15, blue: 0.18))
+                    }
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(red: 0.85, green: 0.25, blue: 0.25).opacity(0.08))
+                .cornerRadius(8)
+
+                // 2. The Pivot
+                HStack(alignment: .top, spacing: 8) {
+                    Text("⚡️")
+                        .font(.system(size: 16))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("THE PIVOT MECHANISM")
+                            .font(.system(size: 10, weight: .black))
+                            .foregroundColor(Color(red: 0.77, green: 0.35, blue: 0.24))
+                        Text(paper.nanoBanana.mechanism)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(Color(red: 0.15, green: 0.15, blue: 0.18))
+                    }
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(red: 0.77, green: 0.35, blue: 0.24).opacity(0.08))
+                .cornerRadius(8)
+
+                // 3. The Benchmark
+                HStack(alignment: .top, spacing: 8) {
+                    Text("🚀")
+                        .font(.system(size: 16))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("NANO-SCALE BENCHMARK")
+                            .font(.system(size: 10, weight: .black))
+                            .foregroundColor(Color(red: 0.15, green: 0.55, blue: 0.35))
+                        Text(paper.nanoBanana.afterScale)
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(Color(red: 0.15, green: 0.15, blue: 0.18))
+                    }
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(red: 0.15, green: 0.55, blue: 0.35).opacity(0.08))
+                .cornerRadius(8)
+            }
+
+            // Efficiency Metrics Bar
+            HStack(spacing: 12) {
+                // Memory
+                HStack(spacing: 8) {
+                    Text("💾")
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Memory Saved")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(Color(red: 0.45, green: 0.45, blue: 0.5))
+                        Text("-\(paper.nanoBanana.memorySavingsPercent)% Footprint")
+                            .font(.system(size: 13, weight: .black))
+                            .foregroundColor(Color(red: 0.15, green: 0.55, blue: 0.35))
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(8)
+                .background(Color(red: 0.15, green: 0.55, blue: 0.35).opacity(0.08))
+                .cornerRadius(8)
+
+                // Throughput
+                HStack(spacing: 8) {
+                    Text("⚡️")
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Throughput Speedup")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(Color(red: 0.45, green: 0.45, blue: 0.5))
+                        Text(String(format: "%.1fx Faster", paper.nanoBanana.speedupFactor))
+                            .font(.system(size: 13, weight: .black))
+                            .foregroundColor(Color(red: 0.77, green: 0.35, blue: 0.24))
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(8)
+                .background(Color(red: 0.77, green: 0.35, blue: 0.24).opacity(0.08))
+                .cornerRadius(8)
+            }
+
+            // Scale Benchmark Callout
+            HStack(spacing: 6) {
+                Text("🍌")
+                    .font(.system(size: 14))
+                Text("Scale: \(paper.nanoBanana.scaleComparison)")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(Color(red: 0.15, green: 0.15, blue: 0.18))
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(red: 0.95, green: 0.78, blue: 0.25).opacity(0.2))
+            .cornerRadius(8)
+
+            // Footer
+            HStack {
+                Text("Paper: \(paper.arxivUrl)")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(Color(red: 0.45, green: 0.45, blue: 0.5))
+                Spacer()
+                Text("YenGuru (ಏನ್ ಗುರು) • BLR")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(Color(red: 0.77, green: 0.35, blue: 0.24))
+            }
+        }
+        .padding(20)
+        .frame(width: 580)
+        .background(Color(red: 0.98, green: 0.97, blue: 0.95))
+        .cornerRadius(14)
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color(red: 0.88, green: 0.85, blue: 0.80), lineWidth: 1.5)
+        )
+    }
+}
+
+@MainActor
+public enum NanoBananaCardRenderer {
+    public static func renderImage(for paper: ArxivGenAIPaper) -> UIImage? {
+        let card = NanoBananaShareCardView(paper: paper)
+        let renderer = ImageRenderer(content: card)
+        renderer.scale = 2.0
+        return renderer.uiImage
+    }
+
+    public static func renderJpeg(for paper: ArxivGenAIPaper) -> Data? {
+        guard let uiImage = renderImage(for: paper) else { return nil }
+        return uiImage.jpegData(compressionQuality: 0.88)
+    }
+}

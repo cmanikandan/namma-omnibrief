@@ -291,24 +291,30 @@ struct OmniBriefJITTestMain {
             "19. Nano-Banana Infographic metrics, architecture snapshots, and Codable roundtrip verified"
         )
 
-        // 12. arXiv Paper X Draft Generation Invariants
-        let draftText = """
-        📄 \(samplePaper.title)
+        // 12. arXiv Paper X Draft Generation Invariants (Standard vs X Blue)
+        let standardDraft = samplePaper.formatForX(isXBlue: false)
+        let xBlueDraft = samplePaper.formatForX(isXBlue: true)
 
-        🍌 Breakdown (Nano-Banana Scale):
-        \(samplePaper.nanoBanana.afterScale)
-
-        💡 2-Min CTO Takeaway:
-        \(samplePaper.twoMinuteTakeaway)
-
-        🔗 Paper: \(samplePaper.arxivUrl)
-        """
         runner.check(
-            draftText.contains("📄 Modeling and Understanding")
-                && draftText.contains("🍌 Breakdown (Nano-Banana Scale):")
-                && draftText.contains("💡 2-Min CTO Takeaway:")
-                && draftText.contains("🔗 Paper: http://arxiv.org"),
-            "20. arXiv Paper X draft composition with Nano-Banana scale verified"
+            standardDraft.contains("📄 Modeling and Understanding")
+                && standardDraft.contains("🍌 Breakdown (Nano-Banana Scale):")
+                && standardDraft.contains("🔗 http://arxiv.org")
+                && standardDraft.count <= 280,
+            "20. arXiv Paper X draft composition respects standard 280-char limit"
+        )
+
+        runner.check(
+            xBlueDraft.contains("📄 Modeling and Understanding")
+                && xBlueDraft.contains("🍌 NANO-BANANA INFOGRAPHIC & BREAKDOWN")
+                && xBlueDraft.contains("• Legacy Bottleneck:")
+                && xBlueDraft.contains("• The Pivot Mechanism:")
+                && xBlueDraft.contains("• Efficiency: -88% Memory | 6.5x Speedup")
+                && xBlueDraft.contains("💡 PLAIN-ENGLISH CONCEPT & ANALOGY:")
+                && xBlueDraft.contains("🛠 FOR BUILDERS & SYSTEMS ENGINEERS:")
+                && xBlueDraft.contains("🎯 2-MINUTE CTO TAKEAWAY:")
+                && xBlueDraft.contains("📥 PDF: https://arxiv.org/pdf")
+                && xBlueDraft.count > 500,
+            "21. arXiv Paper X Blue long-form post generates rich multi-section architecture brief"
         )
 
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")

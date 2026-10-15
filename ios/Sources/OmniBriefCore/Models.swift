@@ -359,5 +359,46 @@ public struct ArxivGenAIPaper: Identifiable, Equatable, Codable, Sendable {
         self.twoMinuteTakeaway = twoMinuteTakeaway
         self.nanoBanana = nanoBanana
     }
+
+    /// Formats this paper for posting to X, taking into account X Blue/Premium long-form vs standard 280 limits.
+    public func formatForX(isXBlue: Bool) -> String {
+        if isXBlue {
+            let authorLine = authors.isEmpty ? "" : "By \(authors.prefix(4).joined(separator: ", "))\n\n"
+            return """
+            📄 \(title)
+            \(authorLine)🍌 NANO-BANANA INFOGRAPHIC & BREAKDOWN
+            • Legacy Bottleneck: \(nanoBanana.beforeBottleneck)
+            • The Pivot Mechanism: \(nanoBanana.mechanism)
+            • Nano-Scale Benchmark: \(nanoBanana.afterScale)
+            • Efficiency: -\(nanoBanana.memorySavingsPercent)% Memory | \(String(format: "%.1fx", nanoBanana.speedupFactor)) Speedup
+            • Scale: \(nanoBanana.scaleComparison)
+
+            💡 PLAIN-ENGLISH CONCEPT & ANALOGY:
+            \(plainEnglishSummary)
+
+            🛠 FOR BUILDERS & SYSTEMS ENGINEERS:
+            \(engineeringImplication)
+
+            🎯 2-MINUTE CTO TAKEAWAY:
+            \(twoMinuteTakeaway)
+
+            🔗 arXiv: \(arxivUrl)
+            📥 PDF: \(pdfUrl)
+
+            #AI #GenAI #MachineLearning #TechBrief
+            """
+        } else {
+            let roomForUrl = arxivUrl.isEmpty ? 0 : (arxivUrl.count + 6)
+            let maxBody = max(100, 280 - roomForUrl)
+            let headline = "📄 \(title)\n\n🍌 Breakdown (Nano-Banana Scale):\n\(nanoBanana.scaleComparison)"
+            let urlSuffix = arxivUrl.isEmpty ? "" : "\n\n🔗 \(arxivUrl)"
+
+            if headline.count <= maxBody {
+                return "\(headline)\(urlSuffix)"
+            }
+            let trimmed = String(headline.prefix(maxBody - 3)) + "..."
+            return "\(trimmed)\(urlSuffix)"
+        }
+    }
 }
 

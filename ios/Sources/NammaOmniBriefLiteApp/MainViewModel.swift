@@ -173,6 +173,11 @@ public final class MainViewModel: ObservableObject {
             self.todaySubSection = .lumaEvents
         } else if ProcessInfo.processInfo.arguments.contains("-tab_arxiv") {
             self.todaySubSection = .arxivPaper
+        } else if ProcessInfo.processInfo.arguments.contains("-screen_drafter_arxiv") {
+            if let paper = self.dailyArxivPaper {
+                self.draftPostFromArxivPaper(paper)
+            }
+            self.selectedTab = .articleToX
         } else if ProcessInfo.processInfo.arguments.contains("-screen_drafter") {
             self.selectedTab = .articleToX
         } else if ProcessInfo.processInfo.arguments.contains("-screen_conference") {
@@ -376,17 +381,26 @@ public final class MainViewModel: ObservableObject {
     }
 
     public func draftPostFromArxivPaper(_ paper: ArxivGenAIPaper) {
-        let text = """
-        📄 \(paper.title)
+        let text = paper.formatForX(isXBlue: prefs.isXBlue)
+        let jpeg = NanoBananaCardRenderer.renderJpeg(for: paper)
+        if let uiImg = NanoBananaCardRenderer.renderImage(for: paper) {
+            articleImages = [uiImg]
+        } else {
+            articleImages = []
+        }
 
-        🍌 Breakdown (Nano-Banana Scale):
-        \(paper.nanoBanana.afterScale)
+        let draftItem = XPostDraftItem(
+            label: "arXiv: \(paper.title)",
+            imageJpegData: jpeg,
+            text: text,
+            source: "arXiv",
+            headline: paper.title,
+            mainTopic: paper.coreBreakthrough,
+            fullSummary: paper.plainEnglishSummary
+        )
 
-        💡 2-Min CTO Takeaway:
-        \(paper.twoMinuteTakeaway)
-
-        🔗 Paper: \(paper.arxivUrl)
-        """
+        postDrafts = [draftItem]
+        activePostDraft = text
         articleTextInput = text
         articleSource = "arXiv"
         sourceIsUserOverride = true
@@ -396,17 +410,7 @@ public final class MainViewModel: ObservableObject {
 
     public func postArxivPaperToX(_ paper: ArxivGenAIPaper) async {
         let charLimit = prefs.isXBlue ? AppPreferencesStore.xPremiumCharLimit : AppPreferencesStore.xStandardCharLimit
-        let tweetText = """
-        📄 \(paper.title)
-
-        🍌 Breakdown (Nano-Banana Scale):
-        \(paper.nanoBanana.afterScale)
-
-        💡 2-Min Takeaway:
-        \(paper.twoMinuteTakeaway)
-
-        🔗 \(paper.arxivUrl)
-        """
+        let tweetText = paper.formatForX(isXBlue: prefs.isXBlue)
 
         let trimmedText = tweetText.count > charLimit
             ? String(tweetText.prefix(charLimit - 3)) + "..."
@@ -418,7 +422,9 @@ public final class MainViewModel: ObservableObject {
         }
 
         isPostingArxivToX = true
-        arxivPostStatus = "Publishing arXiv paper to X..."
+        arxivPostStatus = "Uploading Nano-Banana infographic & publishing to X..."
+
+        let jpegData = NanoBananaCardRenderer.renderJpeg(for: paper)
 
         let outcome = await xClient.postTweet(
             accessToken: prefs.xAccessToken,
@@ -427,7 +433,7 @@ public final class MainViewModel: ObservableObject {
             clientSecret: prefs.xClientSecret,
             refreshToken: prefs.xRefreshToken,
             accessTokenExpiresAtMillis: prefs.xTokenExpiresAtMillis,
-            imageJpegData: nil,
+            imageJpegData: jpegData,
             onTokenRefreshed: { [weak self] newAccess, newRefresh, expiresIn in
                 Task { @MainActor in
                     self?.prefs.saveRefreshedTokens(
@@ -444,7 +450,7 @@ public final class MainViewModel: ObservableObject {
         isPostingArxivToX = false
         switch outcome {
         case .success(let tweetId, _):
-            arxivPostStatus = "✅ Published to X! Tweet ID: \(tweetId)"
+            arxivPostStatus = "✅ Published to X with Nano-Banana infographic! Tweet ID: \(tweetId)"
         case .failure(let error):
             arxivPostStatus = "❌ X post failed: \(error)"
         }
