@@ -294,52 +294,88 @@ public final class MainViewModel: ObservableObject {
         var failures: [String] = []
         let cappedImages = Array(articleImages.prefix(AppPreferencesStore.maxArticleImages))
 
+        struct EncodedImage: Sendable {
+            let index: Int
+            let jpeg: Data
+        }
+
+        var encodedList: [EncodedImage] = []
         for (index, img) in cappedImages.enumerated() {
-            batchProgress = "Analysing image \(index + 1) of \(cappedImages.count)..."
-            guard let jpeg = Self.downscaledJpegData(from: img, maxDimension: 1600) else {
+            if let jpeg = Self.downscaledJpegData(from: img, maxDimension: 1600) {
+                encodedList.append(EncodedImage(index: index, jpeg: jpeg))
+            } else {
                 failures.append("Image \(index + 1): Could not encode JPEG.")
-                continue
+            }
+        }
+
+        if !encodedList.isEmpty {
+            batchProgress = "Analysing \(encodedList.count) images concurrently with \(prefs.geminiModel)..."
+            let apiKey = prefs.geminiApiKey
+            let model = prefs.geminiModel
+            let specifiedSource = sourceIsUserOverride ? articleSource : nil
+            let isXBlue = prefs.isXBlue
+            let client = geminiClient
+
+            let results = await withTaskGroup(of: (Int, Data, Result<ArticleAnalysisResult, Error>).self) { group in
+                for item in encodedList {
+                    group.addTask {
+                        do {
+                            let res = try await client.analyzeArticle(
+                                apiKey: apiKey,
+                                modelName: model,
+                                textInput: "",
+                                imageJpegBuffers: [item.jpeg],
+                                specifiedSource: specifiedSource,
+                                isXBlue: isXBlue
+                            )
+                            return (item.index, item.jpeg, .success(res))
+                        } catch {
+                            return (item.index, item.jpeg, .failure(error))
+                        }
+                    }
+                }
+
+                var collectedGroup: [(Int, Data, Result<ArticleAnalysisResult, Error>)] = []
+                for await element in group {
+                    collectedGroup.append(element)
+                }
+                return collectedGroup.sorted { $0.0 < $1.0 }
             }
 
-            do {
-                let res = try await geminiClient.analyzeArticle(
-                    apiKey: prefs.geminiApiKey,
-                    modelName: prefs.geminiModel,
-                    textInput: "",
-                    imageJpegBuffers: [jpeg],
-                    specifiedSource: sourceIsUserOverride ? articleSource : nil,
-                    isXBlue: prefs.isXBlue
-                )
-                let effectiveSource: String = {
-                    if sourceIsUserOverride { return articleSource }
-                    if !res.detectedSource.isEmpty && res.detectedSource != "Unknown" {
-                        return res.detectedSource
-                    }
-                    return articleSource
-                }()
-                let finalDraftText = sourceIsUserOverride
-                    ? SourceRetargeter.retargetSource(text: res.postDraft, oldSource: res.detectedSource, newSource: articleSource)
-                    : res.postDraft
+            for (index, jpeg, result) in results {
+                switch result {
+                case .success(let res):
+                    let effectiveSource: String = {
+                        if sourceIsUserOverride { return articleSource }
+                        if !res.detectedSource.isEmpty && res.detectedSource != "Unknown" {
+                            return res.detectedSource
+                        }
+                        return articleSource
+                    }()
+                    let finalDraftText = sourceIsUserOverride
+                        ? SourceRetargeter.retargetSource(text: res.postDraft, oldSource: res.detectedSource, newSource: articleSource)
+                        : res.postDraft
 
-                if index == 0 && !sourceIsUserOverride && !effectiveSource.isEmpty {
-                    articleSource = effectiveSource
-                }
-                if index == 0 {
-                    articleAnalysisResult = res
-                }
-                collected.append(
-                    XPostDraftItem(
-                        label: "Image \(index + 1)",
-                        imageJpegData: jpeg,
-                        text: finalDraftText,
-                        source: effectiveSource,
-                        headline: res.headline,
-                        mainTopic: res.mainTopic,
-                        fullSummary: res.fullSummary
+                    if index == 0 && !sourceIsUserOverride && !effectiveSource.isEmpty {
+                        articleSource = effectiveSource
+                    }
+                    if index == 0 {
+                        articleAnalysisResult = res
+                    }
+                    collected.append(
+                        XPostDraftItem(
+                            label: "Image \(index + 1)",
+                            imageJpegData: jpeg,
+                            text: finalDraftText,
+                            source: effectiveSource,
+                            headline: res.headline,
+                            mainTopic: res.mainTopic,
+                            fullSummary: res.fullSummary
+                        )
                     )
-                )
-            } catch {
-                failures.append("Image \(index + 1): \(error.localizedDescription)")
+                case .failure(let error):
+                    failures.append("Image \(index + 1): \(error.localizedDescription)")
+                }
             }
         }
 
@@ -634,7 +670,7 @@ public final class MainViewModel: ObservableObject {
             - Pilot real-time voice and visual assistance interfaces.
 
             ---
-            *Synthesized by Namma Omnibrief*
+            *Synthesized by YenGuru*
             """
         )
         conferenceSuccessMessage = "Loaded Google I/O keynote sample report."
@@ -685,7 +721,7 @@ public final class MainViewModel: ObservableObject {
             - Test Kannada & Indic LLM endpoints on internal domain datasets.
 
             ---
-            *Synthesized by Namma Omnibrief • Bengaluru*
+            *Synthesized by YenGuru • Bengaluru*
             """
         )
         conferenceSuccessMessage = "Loaded Bengaluru Tech Summit sample report."

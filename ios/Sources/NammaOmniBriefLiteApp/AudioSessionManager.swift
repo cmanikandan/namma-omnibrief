@@ -29,8 +29,20 @@ public final class AudioSessionManager: NSObject, ObservableObject, AVAudioRecor
 
     public func checkOrRequestPermission() async -> Bool {
         if #available(iOS 17.0, *) {
+            let current = AVAudioApplication.shared.recordPermission
+            if current == .granted {
+                return true
+            } else if current == .denied {
+                return false
+            }
             return await AVAudioApplication.requestRecordPermission()
         } else {
+            let current = AVAudioSession.sharedInstance().recordPermission
+            if current == .granted {
+                return true
+            } else if current == .denied {
+                return false
+            }
             return await withCheckedContinuation { continuation in
                 AVAudioSession.sharedInstance().requestRecordPermission { granted in
                     continuation.resume(returning: granted)
@@ -45,8 +57,12 @@ public final class AudioSessionManager: NSObject, ObservableObject, AVAudioRecor
 
         let audioSession = AVAudioSession.sharedInstance()
         do {
-            try audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
-            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+            do {
+                try audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
+            } catch {
+                try audioSession.setCategory(.playAndRecord, options: [.defaultToSpeaker])
+            }
+            try audioSession.setActive(true)
 
             let tempDir = FileManager.default.temporaryDirectory
             let fileName = "conf_session_\(Int(Date().timeIntervalSince1970)).m4a"
@@ -63,8 +79,14 @@ public final class AudioSessionManager: NSObject, ObservableObject, AVAudioRecor
             let recorder = try AVAudioRecorder(url: fileURL, settings: settings)
             recorder.delegate = self
             recorder.isMeteringEnabled = true
+            let prepared = recorder.prepareToRecord()
+            guard prepared else {
+                errorMessage = "Failed to prepare microphone recording buffer."
+                state = .idle
+                return
+            }
             guard recorder.record() else {
-                errorMessage = "Could not start audio recorder."
+                errorMessage = "Could not activate microphone recording hardware."
                 state = .idle
                 return
             }
@@ -202,7 +224,7 @@ public final class AudioSessionManager: NSObject, ObservableObject, AVAudioRecor
 
     private func startMeterTimer() {
         meterTimer?.invalidate()
-        meterTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+        let timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self = self, let recorder = self.audioRecorder, self.state == .recording else { return }
                 recorder.updateMeters()
@@ -213,5 +235,7 @@ public final class AudioSessionManager: NSObject, ObservableObject, AVAudioRecor
                 self.amplitude = linear
             }
         }
+        RunLoop.main.add(timer, forMode: .common)
+        self.meterTimer = timer
     }
 }

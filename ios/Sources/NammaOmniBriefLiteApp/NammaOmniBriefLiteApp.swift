@@ -55,10 +55,10 @@ public struct NammaOmniBriefLiteApp: App {
     private var topBar: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Namma Omnibrief")
-                    .font(.system(size: 19, weight: .bold))
+                Text("YenGuru")
+                    .font(.system(size: 20, weight: .bold))
                     .foregroundColor(OmniTheme.deepInk)
-                Text("BENGALURU EXECUTIVE BRIEF • iOS LITE")
+                Text("BENGALURU EXECUTIVE BRIEF • iOS")
                     .font(.system(size: 10, weight: .bold))
                     .foregroundColor(OmniTheme.primaryTerracotta)
             }

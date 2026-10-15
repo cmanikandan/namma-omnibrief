@@ -3,11 +3,11 @@ import Foundation
 /// Calls the Gemini v1beta REST API (`generateContent`) using the 8 hard grounding rules from `AGENTS.md`.
 public final class GeminiClient: Sendable {
 
-    /// Ordered fallback chain used when the selected model is rate-limited or unavailable.
+    /// Ordered fallback chain: Primary (3.8-flash) -> Backup (3.7-flash) -> Last resort (4-argon).
     public static let fallbackModels = [
         "gemini-3.8-flash",
-        "gemini-3.5-flash",
-        "gemini-2.5-flash"
+        "gemini-3.7-flash",
+        "gemini-4-argon"
     ]
 
     private let session: URLSession
@@ -153,7 +153,7 @@ public final class GeminiClient: Sendable {
 
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
-        req.timeoutInterval = 90
+        req.timeoutInterval = 35
         req.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
         req.httpBody = requestBody
 

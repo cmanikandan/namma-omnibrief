@@ -150,7 +150,7 @@ public final class HackerNewsClient: Sendable {
         guard let url = URL(string: urlString) else { return [] }
         var req = URLRequest(url: url)
         req.timeoutInterval = 20
-        req.setValue("NammaOmnibrief-iOS/1.0", forHTTPHeaderField: "User-Agent")
+        req.setValue("YenGuru-iOS/1.0", forHTTPHeaderField: "User-Agent")
 
         let (data, response) = try await session.data(for: req)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {

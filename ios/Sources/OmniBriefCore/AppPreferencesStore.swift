@@ -15,11 +15,9 @@ public final class AppPreferencesStore: @unchecked Sendable {
     public static let autoDetectSource = "Auto-Detect"
 
     public static let availableModels: [(id: String, label: String)] = [
-        ("gemini-3.8-flash", "Gemini Flash 3.8 (High Context)"),
-        ("gemini-3.7-flash", "Gemini Flash 3.7"),
-        ("gemini-3.6-flash", "Gemini Flash 3.6"),
-        ("gemini-3.5-flash", "Gemini Flash 3.5 (Standard)"),
-        ("gemini-2.5-flash", "Gemini Flash 2.5 (Fallback)")
+        ("gemini-3.8-flash", "Gemini Flash 3.8 (Default)"),
+        ("gemini-3.7-flash", "Gemini Flash 3.7 (Backup)"),
+        ("gemini-4-argon", "Gemini 4 Argon (Last Resort)")
     ]
 
     public static let fontScaleOptions: [(scale: Double, label: String)] = [

@@ -243,6 +243,14 @@ struct OmniBriefJITTestMain {
             "15. GeminiClient conference prompt formatting and multimodal JSON parsing verified"
         )
 
+        // 8. Gemini Model Fallback Chain & Default Invariants
+        runner.check(
+            GeminiClient.fallbackModels == ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-4-argon"]
+                && AppPreferencesStore.defaultModel == "gemini-3.8-flash"
+                && AppPreferencesStore.availableModels.map { $0.id } == ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-4-argon"],
+            "16. Gemini fallback chain (3.8-flash -> 3.7-flash -> 4-argon) and available models verified"
+        )
+
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         print("Result: \(runner.passed) passed, \(runner.failed) failed")
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")

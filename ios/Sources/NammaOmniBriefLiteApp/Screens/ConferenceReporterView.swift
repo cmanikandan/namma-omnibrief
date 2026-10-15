@@ -75,7 +75,8 @@ public struct ConferenceReporterView: View {
 
     @ViewBuilder
     private var messagesSection: some View {
-        if let err = viewModel.conferenceError {
+        let displayedError = viewModel.conferenceError ?? viewModel.audioManager.errorMessage
+        if let err = displayedError {
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundColor(OmniTheme.errorCrimson)
@@ -267,11 +268,15 @@ public struct ConferenceReporterView: View {
             case .idle:
                 Button {
                     Task {
+                        viewModel.conferenceError = nil
                         let granted = await viewModel.audioManager.checkOrRequestPermission()
                         if granted {
                             viewModel.audioManager.startRecording()
+                            if let err = viewModel.audioManager.errorMessage {
+                                viewModel.conferenceError = err
+                            }
                         } else {
-                            viewModel.conferenceError = "Microphone access is required to record conference audio. Please enable it in iOS Settings."
+                            viewModel.conferenceError = "Microphone access is required to record conference audio. Please enable it in iPhone Settings > Privacy & Security > Microphone > YenGuru."
                         }
                     }
                 } label: {

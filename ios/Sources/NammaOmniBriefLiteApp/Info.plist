@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Namma Omnibrief</string>
+	<string>YenGuru</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -25,11 +25,11 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Namma Omnibrief uses your camera to photograph newspaper articles and draft grounded posts for X.</string>
+	<string>YenGuru uses your camera to photograph newspaper articles and draft grounded posts for X.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Namma Omnibrief accesses your selected article photos to analyse them with Gemini and attach them to X posts.</string>
+	<string>YenGuru accesses your selected article photos to analyse them with Gemini and attach them to X posts.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Namma Omnibrief records audio during conference sessions to synthesize speaker arguments into executive reports.</string>
+	<string>YenGuru records audio during conference sessions to synthesize speaker arguments into executive reports.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
