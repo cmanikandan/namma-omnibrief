@@ -528,6 +528,9 @@ public struct TodayHeadlinesView: View {
                     .foregroundColor(OmniTheme.mutedSlate)
             }
 
+            // 🍌 NANO-BANANA INFOGRAPHIC
+            nanoBananaInfographicView(paper.nanoBanana)
+
             Divider()
 
             // 1. Plain English Analogy
@@ -607,40 +610,108 @@ public struct TodayHeadlinesView: View {
             .background(OmniTheme.forestGreen.opacity(0.08))
             .cornerRadius(10)
 
-            // Action Buttons
-            HStack(spacing: 10) {
-                Button {
-                    if let url = URL(string: paper.arxivUrl) {
-                        openURL(url)
+            // X Post Status Feedback (if active)
+            if let status = viewModel.arxivPostStatus {
+                HStack {
+                    Text(status)
+                        .omniScaledFont(size: 12, weight: .medium, scale: viewModel.fontScale)
+                        .foregroundColor(status.contains("❌") ? OmniTheme.errorCrimson : (status.contains("✅") ? OmniTheme.forestGreen : OmniTheme.primaryTerracotta))
+                    Spacer()
+                    Button {
+                        viewModel.arxivPostStatus = nil
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(OmniTheme.mutedSlate)
                     }
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.up.right.square")
-                        Text("arXiv Abstract")
+                }
+                .padding(10)
+                .background(OmniTheme.subtleSurface)
+                .cornerRadius(8)
+            }
+
+            // Action Buttons: X Posting & Paper Links
+            VStack(spacing: 8) {
+                HStack(spacing: 10) {
+                    // 1. Draft in X Drafter
+                    Button {
+                        viewModel.draftPostFromArxivPaper(paper)
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "square.and.pencil")
+                            Text("Draft in X Drafter")
+                        }
+                        .omniScaledFont(size: 12, weight: .bold, scale: viewModel.fontScale)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(OmniTheme.subtleSurface)
+                        .foregroundColor(OmniTheme.primaryTerracotta)
+                        .cornerRadius(8)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(OmniTheme.primaryTerracotta.opacity(0.3), lineWidth: 1)
+                        )
                     }
-                    .omniScaledFont(size: 12, weight: .bold, scale: viewModel.fontScale)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(OmniTheme.subtleSurface)
-                    .foregroundColor(OmniTheme.deepInk)
-                    .cornerRadius(8)
+
+                    // 2. Direct Push to X via API
+                    Button {
+                        Task {
+                            await viewModel.postArxivPaperToX(paper)
+                        }
+                    } label: {
+                        HStack(spacing: 5) {
+                            if viewModel.isPostingArxivToX {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                    .tint(.white)
+                            } else {
+                                Image(systemName: "paperplane.fill")
+                            }
+                            Text(viewModel.isPostingArxivToX ? "Pushing..." : "Push to X Now")
+                        }
+                        .omniScaledFont(size: 12, weight: .bold, scale: viewModel.fontScale)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(OmniTheme.deepInk)
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
+                    }
+                    .disabled(viewModel.isPostingArxivToX)
                 }
 
-                Button {
-                    if let url = URL(string: paper.pdfUrl) {
-                        openURL(url)
+                HStack(spacing: 10) {
+                    Button {
+                        if let url = URL(string: paper.arxivUrl) {
+                            openURL(url)
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.up.right.square")
+                            Text("arXiv Abstract")
+                        }
+                        .omniScaledFont(size: 12, weight: .medium, scale: viewModel.fontScale)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                        .background(OmniTheme.subtleSurface)
+                        .foregroundColor(OmniTheme.deepInk)
+                        .cornerRadius(8)
                     }
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "doc.text.fill")
-                        Text("Open Full PDF")
+
+                    Button {
+                        if let url = URL(string: paper.pdfUrl) {
+                            openURL(url)
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "doc.text.fill")
+                            Text("Open Full PDF")
+                        }
+                        .omniScaledFont(size: 12, weight: .bold, scale: viewModel.fontScale)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                        .background(OmniTheme.primaryTerracotta)
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
                     }
-                    .omniScaledFont(size: 12, weight: .bold, scale: viewModel.fontScale)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(OmniTheme.primaryTerracotta)
-                    .foregroundColor(.white)
-                    .cornerRadius(8)
                 }
             }
         }
@@ -650,6 +721,155 @@ public struct TodayHeadlinesView: View {
         .overlay(
             RoundedRectangle(cornerRadius: 14)
                 .stroke(OmniTheme.borderWarm, lineWidth: 1)
+        )
+    }
+
+    private func nanoBananaInfographicView(_ nano: NanoBananaInfographic) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            // Infographic Header Badge
+            HStack(spacing: 6) {
+                Text("🍌")
+                    .font(.system(size: 16))
+                Text("NANO-BANANA INFOGRAPHIC")
+                    .omniScaledFont(size: 11, weight: .black, scale: viewModel.fontScale)
+                    .foregroundColor(OmniTheme.deepInk)
+                Text("• ARCHITECTURE SNAPSHOT")
+                    .omniScaledFont(size: 10, weight: .bold, scale: viewModel.fontScale)
+                    .foregroundColor(OmniTheme.mutedSlate)
+                Spacer()
+            }
+
+            // Visual comparison grid
+            VStack(spacing: 8) {
+                // 1. The Bottleneck (Before)
+                HStack(alignment: .top, spacing: 8) {
+                    Text("🛑")
+                        .font(.system(size: 14))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("LEGACY BOTTLENECK")
+                            .omniScaledFont(size: 10, weight: .bold, scale: viewModel.fontScale)
+                            .foregroundColor(OmniTheme.errorCrimson)
+                        Text(nano.beforeBottleneck)
+                            .omniScaledFont(size: 12, weight: .regular, scale: viewModel.fontScale)
+                            .foregroundColor(OmniTheme.deepInk)
+                    }
+                }
+                .padding(8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(OmniTheme.errorCrimson.opacity(0.06))
+                .cornerRadius(8)
+
+                // 2. The Mechanism (The Pivot)
+                HStack(alignment: .top, spacing: 8) {
+                    Text("⚡️")
+                        .font(.system(size: 14))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("THE PIVOT MECHANISM")
+                            .omniScaledFont(size: 10, weight: .bold, scale: viewModel.fontScale)
+                            .foregroundColor(OmniTheme.primaryTerracotta)
+                        Text(nano.mechanism)
+                            .omniScaledFont(size: 12, weight: .medium, scale: viewModel.fontScale)
+                            .foregroundColor(OmniTheme.deepInk)
+                    }
+                }
+                .padding(8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(OmniTheme.primaryTerracotta.opacity(0.08))
+                .cornerRadius(8)
+
+                // 3. The Nano-Banana Benchmark (After)
+                HStack(alignment: .top, spacing: 8) {
+                    Text("🚀")
+                        .font(.system(size: 14))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("NANO-SCALE BENCHMARK")
+                            .omniScaledFont(size: 10, weight: .bold, scale: viewModel.fontScale)
+                            .foregroundColor(OmniTheme.forestGreen)
+                        Text(nano.afterScale)
+                            .omniScaledFont(size: 12, weight: .semibold, scale: viewModel.fontScale)
+                            .foregroundColor(OmniTheme.deepInk)
+                    }
+                }
+                .padding(8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(OmniTheme.forestGreen.opacity(0.08))
+                .cornerRadius(8)
+            }
+
+            // Metric Efficiency Bars
+            HStack(spacing: 12) {
+                // Memory Saved
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Memory Saved")
+                            .omniScaledFont(size: 10, weight: .bold, scale: viewModel.fontScale)
+                            .foregroundColor(OmniTheme.mutedSlate)
+                        Spacer()
+                        Text("-\(nano.memorySavingsPercent)%")
+                            .omniScaledFont(size: 11, weight: .black, scale: viewModel.fontScale)
+                            .foregroundColor(OmniTheme.forestGreen)
+                    }
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule()
+                                .fill(OmniTheme.borderWarm)
+                                .frame(height: 6)
+                            Capsule()
+                                .fill(OmniTheme.forestGreen)
+                                .frame(width: geo.size.width * CGFloat(nano.memorySavingsPercent) / 100.0, height: 6)
+                        }
+                    }
+                    .frame(height: 6)
+                }
+                .frame(maxWidth: .infinity)
+
+                // Speedup
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Throughput")
+                            .omniScaledFont(size: 10, weight: .bold, scale: viewModel.fontScale)
+                            .foregroundColor(OmniTheme.mutedSlate)
+                        Spacer()
+                        Text(String(format: "%.1fx", nano.speedupFactor))
+                            .omniScaledFont(size: 11, weight: .black, scale: viewModel.fontScale)
+                            .foregroundColor(OmniTheme.primaryTerracotta)
+                    }
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule()
+                                .fill(OmniTheme.borderWarm)
+                                .frame(height: 6)
+                            Capsule()
+                                .fill(OmniTheme.primaryTerracotta)
+                                .frame(width: min(geo.size.width, geo.size.width * CGFloat(nano.speedupFactor) / 8.0), height: 6)
+                        }
+                    }
+                    .frame(height: 6)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .padding(.top, 4)
+
+            // Banana Scale Comparison Callout
+            HStack(spacing: 6) {
+                Text("🍌")
+                    .font(.system(size: 12))
+                Text("Scale: \(nano.scaleComparison)")
+                    .omniScaledFont(size: 11, weight: .medium, scale: viewModel.fontScale)
+                    .foregroundColor(OmniTheme.deepInk.opacity(0.8))
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(OmniTheme.mysoreGold.opacity(0.15))
+            .cornerRadius(6)
+        }
+        .padding(12)
+        .background(OmniTheme.subtleSurface)
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(OmniTheme.mysoreGold.opacity(0.4), lineWidth: 1)
         )
     }
 

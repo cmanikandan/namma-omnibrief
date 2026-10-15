@@ -278,6 +278,39 @@ struct OmniBriefJITTestMain {
             "18. arXiv GenAI Paper model, technical plain-English breakdown, and PDF link verified"
         )
 
+        // 11. Nano-Banana Infographic Invariants & JSON Roundtrip
+        let nanoBanana = samplePaper.nanoBanana
+        let encodedNano = try? JSONEncoder().encode(nanoBanana)
+        let decodedNano = try? JSONDecoder().decode(NanoBananaInfographic.self, from: encodedNano ?? Data())
+        runner.check(
+            nanoBanana.memorySavingsPercent == 88
+                && nanoBanana.speedupFactor == 6.5
+                && nanoBanana.beforeBottleneck.contains("RL Simulation Wall")
+                && nanoBanana.scaleComparison.contains("AWS cluster simulations")
+                && decodedNano == nanoBanana,
+            "19. Nano-Banana Infographic metrics, architecture snapshots, and Codable roundtrip verified"
+        )
+
+        // 12. arXiv Paper X Draft Generation Invariants
+        let draftText = """
+        📄 \(samplePaper.title)
+
+        🍌 Breakdown (Nano-Banana Scale):
+        \(samplePaper.nanoBanana.afterScale)
+
+        💡 2-Min CTO Takeaway:
+        \(samplePaper.twoMinuteTakeaway)
+
+        🔗 Paper: \(samplePaper.arxivUrl)
+        """
+        runner.check(
+            draftText.contains("📄 Modeling and Understanding")
+                && draftText.contains("🍌 Breakdown (Nano-Banana Scale):")
+                && draftText.contains("💡 2-Min CTO Takeaway:")
+                && draftText.contains("🔗 Paper: http://arxiv.org"),
+            "20. arXiv Paper X draft composition with Nano-Banana scale verified"
+        )
+
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         print("Result: \(runner.passed) passed, \(runner.failed) failed")
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")

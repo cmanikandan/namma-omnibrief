@@ -64,6 +64,8 @@ public final class MainViewModel: ObservableObject {
     @Published public var isLoadingArxivPaper: Bool = false
     @Published public var arxivPaperError: String?
     @Published public var trendingArxivIndex: Int = 0
+    @Published public var isPostingArxivToX: Bool = false
+    @Published public var arxivPostStatus: String?
     private var cachedRawArxivEntries: [GeminiClient.ArxivRawEntry] = []
 
     // Hourly Lock Screen Feed
@@ -371,6 +373,81 @@ public final class MainViewModel: ObservableObject {
         articleTextInput = text
         articleError = nil
         selectedTab = .articleToX
+    }
+
+    public func draftPostFromArxivPaper(_ paper: ArxivGenAIPaper) {
+        let text = """
+        📄 \(paper.title)
+
+        🍌 Breakdown (Nano-Banana Scale):
+        \(paper.nanoBanana.afterScale)
+
+        💡 2-Min CTO Takeaway:
+        \(paper.twoMinuteTakeaway)
+
+        🔗 Paper: \(paper.arxivUrl)
+        """
+        articleTextInput = text
+        articleSource = "arXiv"
+        sourceIsUserOverride = true
+        articleError = nil
+        selectedTab = .articleToX
+    }
+
+    public func postArxivPaperToX(_ paper: ArxivGenAIPaper) async {
+        let charLimit = prefs.isXBlue ? AppPreferencesStore.xPremiumCharLimit : AppPreferencesStore.xStandardCharLimit
+        let tweetText = """
+        📄 \(paper.title)
+
+        🍌 Breakdown (Nano-Banana Scale):
+        \(paper.nanoBanana.afterScale)
+
+        💡 2-Min Takeaway:
+        \(paper.twoMinuteTakeaway)
+
+        🔗 \(paper.arxivUrl)
+        """
+
+        let trimmedText = tweetText.count > charLimit
+            ? String(tweetText.prefix(charLimit - 3)) + "..."
+            : tweetText
+
+        guard !prefs.xAccessToken.isEmpty || !prefs.xRefreshToken.isEmpty else {
+            arxivPostStatus = "⚠️ X OAuth not configured in Settings. Tap 'Draft in X Drafter' to edit or post via X app."
+            return
+        }
+
+        isPostingArxivToX = true
+        arxivPostStatus = "Publishing arXiv paper to X..."
+
+        let outcome = await xClient.postTweet(
+            accessToken: prefs.xAccessToken,
+            text: trimmedText,
+            clientId: prefs.xClientId,
+            clientSecret: prefs.xClientSecret,
+            refreshToken: prefs.xRefreshToken,
+            accessTokenExpiresAtMillis: prefs.xTokenExpiresAtMillis,
+            imageJpegData: nil,
+            onTokenRefreshed: { [weak self] newAccess, newRefresh, expiresIn in
+                Task { @MainActor in
+                    self?.prefs.saveRefreshedTokens(
+                        accessToken: newAccess,
+                        refreshToken: newRefresh,
+                        expiresInSeconds: expiresIn
+                    )
+                    self?.xAccessToken = newAccess
+                    self?.xRefreshToken = newRefresh
+                }
+            }
+        )
+
+        isPostingArxivToX = false
+        switch outcome {
+        case .success(let tweetId, _):
+            arxivPostStatus = "✅ Published to X! Tweet ID: \(tweetId)"
+        case .failure(let error):
+            arxivPostStatus = "❌ X post failed: \(error)"
+        }
     }
 
     // MARK: - Article -> X Actions

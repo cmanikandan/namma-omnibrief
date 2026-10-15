@@ -63,7 +63,7 @@ public final class AudioSessionManager: NSObject, ObservableObject, AVAudioRecor
                 try audioSession.setCategory(
                     .playAndRecord,
                     mode: .spokenAudio,
-                    options: [.defaultToSpeaker, .allowBluetooth]
+                    options: [.defaultToSpeaker, .allowBluetoothHFP]
                 )
             } catch {
                 try audioSession.setCategory(.playAndRecord, options: [.defaultToSpeaker])
@@ -189,21 +189,34 @@ public final class AudioSessionManager: NSObject, ObservableObject, AVAudioRecor
     }
 
     public func startPlayback() {
-        guard let url = recordedFileURL, FileManager.default.fileExists(atPath: url.path) else { return }
+        if state == .recording || state == .paused {
+            stopRecording()
+        }
+        guard let url = recordedFileURL, FileManager.default.fileExists(atPath: url.path) else {
+            errorMessage = "No recorded audio file found."
+            return
+        }
         stopPlayback()
 
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .default, options: [.defaultToSpeaker])
+            // IMPORTANT: For category .playback, options must NOT contain .defaultToSpeaker.
+            // Passing .defaultToSpeaker to .playback triggers OSStatus -50 (kAudio_ParamError).
+            try session.setCategory(.playback, mode: .spokenAudio, options: [])
             try session.setActive(true)
 
             let player = try AVAudioPlayer(contentsOf: url)
             player.delegate = self
             player.prepareToPlay()
-            player.play()
-
-            self.audioPlayer = player
-            self.isPlaying = true
+            if player.play() {
+                self.audioPlayer = player
+                self.isPlaying = true
+                self.errorMessage = nil
+            } else {
+                errorMessage = "Could not start audio playback."
+                isPlaying = false
+                return
+            }
 
             playbackTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
                 Task { @MainActor [weak self] in
@@ -261,14 +274,16 @@ public final class AudioSessionManager: NSObject, ObservableObject, AVAudioRecor
     private func startMeterTimer() {
         meterTimer?.invalidate()
         let timer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
-            guard let self = self, let recorder = self.audioRecorder, self.state == .recording else { return }
-            recorder.updateMeters()
-            self.durationSeconds = Int(recorder.currentTime)
-            let avg = recorder.averagePower(forChannel: 0)
-            // Normalize from [-60 dB, 0 dB] to [0.0, 1.0]
-            let linear = max(0.0, (avg + 60.0) / 60.0)
-            self.amplitude = linear
-            self.updateFileSize()
+            Task { @MainActor [weak self] in
+                guard let self = self, let recorder = self.audioRecorder, self.state == .recording else { return }
+                recorder.updateMeters()
+                self.durationSeconds = Int(recorder.currentTime)
+                let avg = recorder.averagePower(forChannel: 0)
+                // Normalize from [-60 dB, 0 dB] to [0.0, 1.0]
+                let linear = max(0.0, (avg + 60.0) / 60.0)
+                self.amplitude = linear
+                self.updateFileSize()
+            }
         }
         RunLoop.main.add(timer, forMode: .common)
         self.meterTimer = timer

@@ -625,13 +625,23 @@ public final class GeminiClient: Sendable {
         Avoid math jargon, matrix algebra notations, or dense academic phrasing.
         Use intuitive software analogies (e.g. caching, compiler optimizations, RPC, distributed consensus) where appropriate.
 
+        Include a "Nano-Banana Infographic" mental model comparing the legacy architecture to the new breakthrough.
+
         Return your output as a strict JSON object (no markdown fences) with keys:
         {
           "plainEnglishSummary": "A vivid 2-paragraph conceptual explanation of what this paper actually does.",
           "coreProblem": "What bottleneck, failure mode, or cost barrier in current AI architectures does this solve?",
           "coreBreakthrough": "The specific novel architecture, algorithm, or insight introduced.",
           "engineeringImplication": "What this means for software engineers and engineering leaders building AI systems today.",
-          "twoMinuteTakeaway": "A razor-sharp 2-sentence executive takeaway for a CTO or tech lead."
+          "twoMinuteTakeaway": "A razor-sharp 2-sentence executive takeaway for a CTO or tech lead.",
+          "nanoBananaInfographic": {
+            "beforeBottleneck": "Legacy baseline bottleneck (e.g. 500h reinforcement learning simulation per motor skill)",
+            "mechanism": "Core technical mechanism (e.g. Latent Diffusion over actor network weights directly)",
+            "afterScale": "Measurable breakthrough impact (e.g. Millisecond motor policy generation on-device)",
+            "scaleComparison": "Visual scale comparison (e.g. From days of cluster compute down to 1-second edge inference)",
+            "memorySavingsPercent": 80,
+            "speedupFactor": 4.5
+          }
         }
         """
 
@@ -667,6 +677,16 @@ public final class GeminiClient: Sendable {
                 return Self.sampleArxivPaper()
             }
 
+            let nanoObj = obj["nanoBananaInfographic"] as? [String: Any]
+            let nanoBanana = NanoBananaInfographic(
+                beforeBottleneck: (nanoObj?["beforeBottleneck"] as? String) ?? "Legacy training bottleneck and high resource footprint",
+                mechanism: (nanoObj?["mechanism"] as? String) ?? "Novel generative architectural optimization",
+                afterScale: (nanoObj?["afterScale"] as? String) ?? "Substantial latency reduction and improved compute efficiency",
+                scaleComparison: (nanoObj?["scaleComparison"] as? String) ?? "Scales from massive cluster training down to edge deployment",
+                memorySavingsPercent: (nanoObj?["memorySavingsPercent"] as? Int) ?? 80,
+                speedupFactor: (nanoObj?["speedupFactor"] as? Double) ?? 4.0
+            )
+
             return ArxivGenAIPaper(
                 id: rawEntry.id,
                 title: rawEntry.title,
@@ -679,7 +699,8 @@ public final class GeminiClient: Sendable {
                 coreProblem: (obj["coreProblem"] as? String) ?? "Training complexity and generalization limits in existing models.",
                 coreBreakthrough: (obj["coreBreakthrough"] as? String) ?? "Novel architectural optimization over latent representation space.",
                 engineeringImplication: (obj["engineeringImplication"] as? String) ?? "Enables faster fine-tuning and significantly lower inference compute budgets.",
-                twoMinuteTakeaway: (obj["twoMinuteTakeaway"] as? String) ?? "A major step forward for practical real-world deployment of complex generative models."
+                twoMinuteTakeaway: (obj["twoMinuteTakeaway"] as? String) ?? "A major step forward for practical real-world deployment of complex generative models.",
+                nanoBanana: nanoBanana
             )
         } catch {
             return Self.sampleArxivPaper()
@@ -699,7 +720,15 @@ public final class GeminiClient: Sendable {
             coreProblem: "Humanoid robot control policies typically require hundreds of hours of trial-and-error simulation per motion skill, and learned networks rarely transfer easily to new kinematic tasks without starting from scratch.",
             coreBreakthrough: "A latent diffusion framework coupling a linear autoencoder with a Diffusion Transformer. The autoencoder compresses actor network parameters into a low-dimensional space, and diffusion models the distribution of functional weights.",
             engineeringImplication: "Generative policy synthesis allows fast real-time deployment of motor skills onto physical robots (verified on Unitree G1) without physics simulation overhead, creating on-demand behavioral libraries.",
-            twoMinuteTakeaway: "Treating policy weights as generative tokens lets us synthesize robotic motor skills in seconds. Humanoid robotics is entering its generative diffusion era."
+            twoMinuteTakeaway: "Treating policy weights as generative tokens lets us synthesize robotic motor skills in seconds. Humanoid robotics is entering its generative diffusion era.",
+            nanoBanana: NanoBananaInfographic(
+                beforeBottleneck: "Legacy RL Simulation Wall: 500+ hours of physical simulation required per motor gait, failing to generalize to real hardware.",
+                mechanism: "Weight-Space Diffusion Transformer: Direct generative modeling of neural network policy weights via linear autoencoder.",
+                afterScale: "Zero-Simulation Gait Generation: Generates complete executable motor policies in <1.2 seconds, deployed directly to physical humanoid robot.",
+                scaleComparison: "Replaces days on AWS cluster simulations with instantaneous 1-second policy synthesis on robot's onboard chip.",
+                memorySavingsPercent: 88,
+                speedupFactor: 6.5
+            )
         )
     }
 }

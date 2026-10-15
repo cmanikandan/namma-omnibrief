@@ -288,6 +288,32 @@ public struct LumaBengaluruEvent: Identifiable, Equatable, Codable, Sendable {
     }
 }
 
+/// An intuitive visual breakdown ("Nano-Banana Scale") comparing the legacy architecture with the novel breakthrough.
+public struct NanoBananaInfographic: Equatable, Codable, Sendable {
+    public let beforeBottleneck: String
+    public let mechanism: String
+    public let afterScale: String
+    public let scaleComparison: String
+    public let memorySavingsPercent: Int
+    public let speedupFactor: Double
+
+    public init(
+        beforeBottleneck: String = "Quadratic Attention & Monolithic KV Cache",
+        mechanism: String = "Selective State Compression & Adaptive Token Routing",
+        afterScale: String = "Sub-quadratic Linear Latency & 10x Footprint Reduction",
+        scaleComparison: String = "Runs on 1x local workstation instead of an 8x H100 cluster",
+        memorySavingsPercent: Int = 85,
+        speedupFactor: Double = 4.2
+    ) {
+        self.beforeBottleneck = beforeBottleneck
+        self.mechanism = mechanism
+        self.afterScale = afterScale
+        self.scaleComparison = scaleComparison
+        self.memorySavingsPercent = memorySavingsPercent
+        self.speedupFactor = speedupFactor
+    }
+}
+
 /// A trending GenAI research paper from arXiv, simplified by Gemini for an engineering leader/techie.
 public struct ArxivGenAIPaper: Identifiable, Equatable, Codable, Sendable {
     public let id: String
@@ -302,6 +328,7 @@ public struct ArxivGenAIPaper: Identifiable, Equatable, Codable, Sendable {
     public let coreBreakthrough: String
     public let engineeringImplication: String
     public let twoMinuteTakeaway: String
+    public let nanoBanana: NanoBananaInfographic
 
     public init(
         id: String,
@@ -315,7 +342,8 @@ public struct ArxivGenAIPaper: Identifiable, Equatable, Codable, Sendable {
         coreProblem: String = "",
         coreBreakthrough: String = "",
         engineeringImplication: String = "",
-        twoMinuteTakeaway: String = ""
+        twoMinuteTakeaway: String = "",
+        nanoBanana: NanoBananaInfographic = NanoBananaInfographic()
     ) {
         self.id = id
         self.title = title
@@ -329,6 +357,7 @@ public struct ArxivGenAIPaper: Identifiable, Equatable, Codable, Sendable {
         self.coreBreakthrough = coreBreakthrough
         self.engineeringImplication = engineeringImplication
         self.twoMinuteTakeaway = twoMinuteTakeaway
+        self.nanoBanana = nanoBanana
     }
 }
 
