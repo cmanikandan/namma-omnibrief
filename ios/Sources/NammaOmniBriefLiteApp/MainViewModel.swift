@@ -52,6 +52,7 @@ public final class MainViewModel: ObservableObject {
     @Published public var confSpeaker: String = ""
     @Published public var confPhotos: [UIImage] = []
     @Published public var isGeneratingConferenceReport: Bool = false
+    @Published public var conferenceProgress: String?
     @Published public var conferenceReportResult: ConferenceReportResult?
     @Published public var conferenceError: String?
     @Published public var conferenceSuccessMessage: String?
@@ -740,7 +741,21 @@ public final class MainViewModel: ObservableObject {
             return
         }
 
+        // Request background execution time so iOS will not suspend synthesis if phone sleeps or user switches apps
+        var bgTaskId = UIBackgroundTaskIdentifier.invalid
+        bgTaskId = UIApplication.shared.beginBackgroundTask(withName: "YenGuruConferenceSynthesis") {
+            UIApplication.shared.endBackgroundTask(bgTaskId)
+            bgTaskId = .invalid
+        }
+        defer {
+            if bgTaskId != .invalid {
+                UIApplication.shared.endBackgroundTask(bgTaskId)
+                bgTaskId = .invalid
+            }
+        }
+
         isGeneratingConferenceReport = true
+        conferenceProgress = "Preparing session slides & audio buffer..."
         conferenceError = nil
         conferenceSuccessMessage = nil
 
@@ -748,6 +763,12 @@ public final class MainViewModel: ObservableObject {
         var audioBytes: Data? = nil
         if let audioURL = recordedURL {
             audioBytes = try? Data(contentsOf: audioURL)
+        }
+
+        if let audio = audioBytes, !audio.isEmpty {
+            conferenceProgress = "Uploading audio (\(audioManager.fileSizeDescription)) & slides to Gemini..."
+        } else {
+            conferenceProgress = "Synthesizing slides & session notes with Gemini..."
         }
 
         do {
@@ -759,10 +780,11 @@ public final class MainViewModel: ObservableObject {
                 speakerName: confSpeaker,
                 photoJpegBuffers: photoBuffers,
                 audioData: audioBytes,
-                audioMimeType: "audio/mp4"
+                audioMimeType: "audio/m4a"
             )
             self.conferenceReportResult = report
             self.conferenceSuccessMessage = "Report synthesized successfully!"
+            self.conferenceProgress = nil
 
             // Save to Archive
             let brief = BriefItem(
@@ -777,6 +799,7 @@ public final class MainViewModel: ObservableObject {
             archivedBriefs = archiveStore.loadAll()
         } catch {
             self.conferenceError = error.localizedDescription
+            self.conferenceProgress = nil
         }
 
         isGeneratingConferenceReport = false

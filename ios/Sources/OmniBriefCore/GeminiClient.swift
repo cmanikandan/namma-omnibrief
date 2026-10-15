@@ -126,7 +126,8 @@ public final class GeminiClient: Sendable {
     private func callWithFallbacks(
         apiKey: String,
         preferredModel: String,
-        requestBody: Data
+        requestBody: Data,
+        timeoutInterval: TimeInterval = 35
     ) async throws -> Data {
         var chain = [preferredModel]
         for fallback in Self.fallbackModels where !chain.contains(fallback) {
@@ -136,7 +137,12 @@ public final class GeminiClient: Sendable {
         var lastError: Error?
         for model in chain {
             do {
-                return try await callSingleModel(apiKey: apiKey, model: model, requestBody: requestBody)
+                return try await callSingleModel(
+                    apiKey: apiKey,
+                    model: model,
+                    requestBody: requestBody,
+                    timeoutInterval: timeoutInterval
+                )
             } catch {
                 lastError = error
             }
@@ -144,7 +150,12 @@ public final class GeminiClient: Sendable {
         throw lastError ?? NSError(domain: "GeminiClient", code: -1, userInfo: [NSLocalizedDescriptionKey: "No Gemini model available"])
     }
 
-    private func callSingleModel(apiKey: String, model: String, requestBody: Data) async throws -> Data {
+    private func callSingleModel(
+        apiKey: String,
+        model: String,
+        requestBody: Data,
+        timeoutInterval: TimeInterval = 35
+    ) async throws -> Data {
         let cleanModel = model.hasPrefix("models/") ? String(model.dropFirst(7)) : model
         let urlStr = "https://generativelanguage.googleapis.com/v1beta/models/\(cleanModel):generateContent?key=\(apiKey)"
         guard let url = URL(string: urlStr) else {
@@ -153,7 +164,7 @@ public final class GeminiClient: Sendable {
 
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
-        req.timeoutInterval = 35
+        req.timeoutInterval = timeoutInterval
         req.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
         req.httpBody = requestBody
 
@@ -266,7 +277,7 @@ public final class GeminiClient: Sendable {
         speakerName: String,
         photoJpegBuffers: [Data],
         audioData: Data?,
-        audioMimeType: String = "audio/mp4"
+        audioMimeType: String = "audio/m4a"
     ) async throws -> ConferenceReportResult {
         let cleanKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanKey.isEmpty else {
@@ -299,9 +310,19 @@ public final class GeminiClient: Sendable {
         }
 
         if let audio = audioData, !audio.isEmpty {
+            let limitBytes = 18_500_000
+            if audio.count > limitBytes {
+                let mb = Double(audio.count) / 1_048_576.0
+                throw NSError(
+                    domain: "GeminiClient",
+                    code: 413,
+                    userInfo: [NSLocalizedDescriptionKey: String(format: "Audio size (%.1f MB) exceeds Gemini's 20 MB inline API payload limit. Please trim the session.", mb)]
+                )
+            }
+            let validMime = (audioMimeType == "audio/mp4") ? "audio/m4a" : audioMimeType
             parts.append([
                 "inlineData": [
-                    "mimeType": audioMimeType,
+                    "mimeType": validMime,
                     "data": audio.base64EncodedString()
                 ]
             ])
@@ -317,7 +338,8 @@ public final class GeminiClient: Sendable {
         let responseData = try await callWithFallbacks(
             apiKey: cleanKey,
             preferredModel: modelName,
-            requestBody: requestBody
+            requestBody: requestBody,
+            timeoutInterval: 120
         )
 
         return try Self.parseConferenceResult(

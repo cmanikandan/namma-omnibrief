@@ -307,9 +307,16 @@ public struct ConferenceReporterView: View {
                         Spacer()
 
                         let s = viewModel.audioManager.durationSeconds
-                        Text(String(format: "%02d:%02d", s / 60, s % 60))
-                            .font(.system(size: 15, weight: .bold, design: .monospaced))
-                            .foregroundColor(OmniTheme.deepInk)
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text(String(format: "%02d:%02d", s / 60, s % 60))
+                                .font(.system(size: 15, weight: .bold, design: .monospaced))
+                                .foregroundColor(OmniTheme.deepInk)
+                            if !viewModel.audioManager.fileSizeDescription.isEmpty {
+                                Text(viewModel.audioManager.fileSizeDescription)
+                                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                                    .foregroundColor(OmniTheme.mutedSlate)
+                            }
+                        }
                     }
 
                     // Live waveform amplitude bars
@@ -383,7 +390,8 @@ public struct ConferenceReporterView: View {
                         Image(systemName: "waveform")
                             .foregroundColor(OmniTheme.forestGreen)
                         let s = viewModel.audioManager.durationSeconds
-                        Text("Audio Captured (\(String(format: "%02d:%02d", s / 60, s % 60)))")
+                        let sizeStr = viewModel.audioManager.fileSizeDescription.isEmpty ? "" : " • \(viewModel.audioManager.fileSizeDescription)"
+                        Text("Audio Captured (\(String(format: "%02d:%02d", s / 60, s % 60))\(sizeStr))")
                             .omniScaledFont(size: 13, weight: .semibold, scale: viewModel.fontScale)
                             .foregroundColor(OmniTheme.deepInk)
                         Spacer()
@@ -413,30 +421,40 @@ public struct ConferenceReporterView: View {
     }
 
     private var synthesizeButton: some View {
-        Button {
-            Task {
-                await viewModel.synthesizeConferenceReport()
-            }
-        } label: {
-            HStack(spacing: 8) {
-                if viewModel.isGeneratingConferenceReport {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                    Text("Synthesizing Multimodal Report…")
-                        .omniScaledFont(size: 14, weight: .bold, scale: viewModel.fontScale)
-                } else {
-                    Image(systemName: "sparkles")
-                    Text("Synthesize Executive Field Report")
-                        .omniScaledFont(size: 14, weight: .bold, scale: viewModel.fontScale)
+        VStack(spacing: 8) {
+            Button {
+                Task {
+                    await viewModel.synthesizeConferenceReport()
                 }
+            } label: {
+                HStack(spacing: 8) {
+                    if viewModel.isGeneratingConferenceReport {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        Text(viewModel.conferenceProgress ?? "Synthesizing Multimodal Report…")
+                            .omniScaledFont(size: 13, weight: .bold, scale: viewModel.fontScale)
+                            .lineLimit(1)
+                    } else {
+                        Image(systemName: "sparkles")
+                        Text("Synthesize Executive Field Report")
+                            .omniScaledFont(size: 14, weight: .bold, scale: viewModel.fontScale)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(viewModel.isGeneratingConferenceReport ? OmniTheme.mutedSlate : OmniTheme.primaryTerracotta)
+                .foregroundColor(.white)
+                .cornerRadius(12)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(viewModel.isGeneratingConferenceReport ? OmniTheme.mutedSlate : OmniTheme.primaryTerracotta)
-            .foregroundColor(.white)
-            .cornerRadius(12)
+            .disabled(viewModel.isGeneratingConferenceReport)
+
+            if let progress = viewModel.conferenceProgress, viewModel.isGeneratingConferenceReport {
+                Text(progress)
+                    .omniScaledFont(size: 11, weight: .medium, scale: viewModel.fontScale)
+                    .foregroundColor(OmniTheme.mutedSlate)
+                    .multilineTextAlignment(.center)
+            }
         }
-        .disabled(viewModel.isGeneratingConferenceReport)
     }
 
     private func reportResultCard(report: ConferenceReportResult) -> some View {

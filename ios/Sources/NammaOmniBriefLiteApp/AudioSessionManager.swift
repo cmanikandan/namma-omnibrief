@@ -16,6 +16,8 @@ public final class AudioSessionManager: NSObject, ObservableObject, AVAudioRecor
     @Published public var isPlaying: Bool = false
     @Published public var playbackProgress: Double = 0.0
     @Published public var recordedFileURL: URL? = nil
+    @Published public var fileSizeDescription: String = ""
+    @Published public var fileSizeBytes: Int64 = 0
     @Published public var errorMessage: String? = nil
 
     private var audioRecorder: AVAudioRecorder?
@@ -58,22 +60,31 @@ public final class AudioSessionManager: NSObject, ObservableObject, AVAudioRecor
         let audioSession = AVAudioSession.sharedInstance()
         do {
             do {
-                try audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
+                try audioSession.setCategory(
+                    .playAndRecord,
+                    mode: .spokenAudio,
+                    options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP]
+                )
             } catch {
                 try audioSession.setCategory(.playAndRecord, options: [.defaultToSpeaker])
             }
-            try audioSession.setActive(true)
+            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
 
-            let tempDir = FileManager.default.temporaryDirectory
+            let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            let sessionsDir = docs.appendingPathComponent("ConferenceRecordings", isDirectory: true)
+            try? FileManager.default.createDirectory(at: sessionsDir, withIntermediateDirectories: true)
+
             let fileName = "conf_session_\(Int(Date().timeIntervalSince1970)).m4a"
-            let fileURL = tempDir.appendingPathComponent(fileName)
+            let fileURL = sessionsDir.appendingPathComponent(fileName)
 
+            // Voice-optimized speech settings: 22.05 kHz mono @ 28 kbps.
+            // A full 1-hour recording is ~12.6 MB (under Gemini's 20 MB inlineData limit).
             let settings: [String: Any] = [
                 AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
-                AVSampleRateKey: 44100.0,
+                AVSampleRateKey: 22050.0,
                 AVNumberOfChannelsKey: 1,
-                AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue,
-                AVEncoderBitRateKey: 64000
+                AVEncoderAudioQualityKey: AVAudioQuality.medium.rawValue,
+                AVEncoderBitRateKey: 28000
             ]
 
             let recorder = try AVAudioRecorder(url: fileURL, settings: settings)
@@ -81,7 +92,7 @@ public final class AudioSessionManager: NSObject, ObservableObject, AVAudioRecor
             recorder.isMeteringEnabled = true
             let prepared = recorder.prepareToRecord()
             guard prepared else {
-                errorMessage = "Failed to prepare microphone recording buffer."
+                errorMessage = "Failed to initialize microphone buffer."
                 state = .idle
                 return
             }
@@ -95,6 +106,8 @@ public final class AudioSessionManager: NSObject, ObservableObject, AVAudioRecor
             self.recordedFileURL = fileURL
             self.state = .recording
             self.durationSeconds = 0
+            self.fileSizeDescription = "0 KB"
+            self.fileSizeBytes = 0
             self.errorMessage = nil
 
             startMeterTimer()
@@ -131,8 +144,9 @@ public final class AudioSessionManager: NSObject, ObservableObject, AVAudioRecor
         }
         audioRecorder = nil
 
-        if recordedFileURL != nil {
+        if let url = recordedFileURL, FileManager.default.fileExists(atPath: url.path) {
             state = .stopped
+            updateFileSize()
         } else {
             state = .idle
         }
@@ -155,6 +169,8 @@ public final class AudioSessionManager: NSObject, ObservableObject, AVAudioRecor
         }
 
         durationSeconds = 0
+        fileSizeDescription = ""
+        fileSizeBytes = 0
         amplitude = 0.0
         state = .idle
     }
@@ -173,7 +189,7 @@ public final class AudioSessionManager: NSObject, ObservableObject, AVAudioRecor
 
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .default)
+            try session.setCategory(.playback, mode: .default, options: [.defaultToSpeaker])
             try session.setActive(true)
 
             let player = try AVAudioPlayer(contentsOf: url)
@@ -207,6 +223,14 @@ public final class AudioSessionManager: NSObject, ObservableObject, AVAudioRecor
         playbackProgress = 0.0
     }
 
+    public func updateFileSize() {
+        guard let url = recordedFileURL,
+              let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+              let size = attrs[.size] as? Int64 else { return }
+        self.fileSizeBytes = size
+        self.fileSizeDescription = ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
+    }
+
     // MARK: - Delegates
     public nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         Task { @MainActor in
@@ -219,12 +243,13 @@ public final class AudioSessionManager: NSObject, ObservableObject, AVAudioRecor
             if !flag {
                 self.errorMessage = "Audio recording completed with an error."
             }
+            self.updateFileSize()
         }
     }
 
     private func startMeterTimer() {
         meterTimer?.invalidate()
-        let timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+        let timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self = self, let recorder = self.audioRecorder, self.state == .recording else { return }
                 recorder.updateMeters()
@@ -233,6 +258,7 @@ public final class AudioSessionManager: NSObject, ObservableObject, AVAudioRecor
                 // Normalize from [-60 dB, 0 dB] to [0.0, 1.0]
                 let linear = max(0.0, (avg + 60.0) / 60.0)
                 self.amplitude = linear
+                self.updateFileSize()
             }
         }
         RunLoop.main.add(timer, forMode: .common)
