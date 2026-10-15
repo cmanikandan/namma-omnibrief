@@ -167,6 +167,18 @@ public final class MainViewModel: ObservableObject {
             self.dailyArxivPaper = GeminiClient.sampleArxivPaper()
         }
 
+        if ProcessInfo.processInfo.arguments.contains("-tab_luma") {
+            self.todaySubSection = .lumaEvents
+        } else if ProcessInfo.processInfo.arguments.contains("-tab_arxiv") {
+            self.todaySubSection = .arxivPaper
+        } else if ProcessInfo.processInfo.arguments.contains("-screen_drafter") {
+            self.selectedTab = .articleToX
+        } else if ProcessInfo.processInfo.arguments.contains("-screen_conference") {
+            self.selectedTab = .conference
+        } else if ProcessInfo.processInfo.arguments.contains("-screen_settings") {
+            self.selectedTab = .settings
+        }
+
         Task {
             await refreshHeadlines()
         }

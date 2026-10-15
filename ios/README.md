@@ -1,4 +1,4 @@
-# Namma Omnibrief Lite for iOS
+# YenGuru (ಏನ್ ಗುರು) for iOS
 
 A native Swift / SwiftUI port of the Android app, for iPhone (iOS 17 or newer).
 
@@ -13,7 +13,7 @@ This guide assumes **no prior iOS experience**. If you have built Android apps b
 
 ## Contents
 
-- [What is in the Lite edition](#what-is-in-the-lite-edition)
+- [What is in YenGuru for iOS](#what-is-in-yenguru-for-ios)
 - [Android → iOS cheat sheet](#android--ios-cheat-sheet)
 - [The four ways to get the app onto your iPhone](#the-four-ways-to-get-the-app-onto-your-iphone)
 - [Which one should you pick?](#which-one-should-you-pick)
@@ -33,19 +33,17 @@ This guide assumes **no prior iOS experience**. If you have built Android apps b
 
 ---
 
-## What is in the Lite edition
+## What is in YenGuru for iOS
 
-Four tabs, mirroring the parts of the Android app used day to day:
+Five comprehensive tabs mirroring and extending the Android app:
 
 | Tab | What it does |
 |---|---|
-| **Today** | Hacker News top 10 ranked by your interests (GenAI, OpenAI, Gemini, Google, Anthropic, India Tech). Public, keyless API — works on first launch. **For you / Newest** sort, story ages, pull-to-refresh, and **Draft** to send a headline to the drafter. |
-| **X Drafter** | Camera or Photos (up to 10 images), paste text, or **Sample FT** for a no-key test. Gemini drafts a grounded post using the same 8 rules as Android. Change the **Publication Attribution** menu and the draft text, `Source:` line and Archive entry all follow. Publish via OAuth 2.0 (with the photo attached) or **Open in X App**. |
-| **Archive** | The last 10 briefs, stored on the phone. Reopen in the drafter, share (Mail, Drive, Notes, AirDrop), delete. |
-| **Settings** | Text size (5 steps), Gemini model, X credentials, and a **Bulk Import** box that accepts pasted `.env` lines. |
-
-**Not included:** the Conference Reporter (audio recording + slides). It has not been exercised on
-Android yet either, so porting it now would mean porting something unverified.
+| **Today** | Executive intelligence feed: **Hacker News Signal** (interest-ranked with lock screen hourly push), **Bengaluru Lu.ma Events** (curated tech & AI meetups, 8h cache), and **Daily Trending arXiv GenAI Paper** (jargon-free technical breakdown for tech leaders). |
+| **X Drafter** | Camera or Photos (up to 10 images), paste text, or **Sample FT**. Concurrent Gemini analysis (~5s for 9 images), 8-rule strictly-grounded post drafting, live source retargeting, and OAuth 2.0 publishing with photo attachment. |
+| **Conference** | Executive session reporter: up to 30 slides, voice-optimized background audio recording (AAC 22kHz mono, under 13 MB/hr) with live waveform, and multimodal report synthesis. |
+| **Archive** | The last 10 briefs stored locally with FIFO rollover. Reopen, share (Mail, Drive, Notes, AirDrop), delete. |
+| **Settings** | Text size (5 steps), Gemini fallback chain (3.8 Flash → 3.7 Flash → 4 Argon), Lock Screen notification toggle, X credentials, and bulk `.env` import. |
 
 ---
 

@@ -1,48 +1,37 @@
-# Namma Omnibrief
+# Namma Omnibrief / YenGuru (ಏನ್ ಗುರು)
 
-A personal Android app — now with an **iOS companion** — for turning what you read and what you
-attend into publishable output.
+A personal executive intelligence app — native on **Android** and **iOS** — for turning what you read,
+what you attend, and what is trending in tech into actionable, publishable output.
 
-Point your camera at a newspaper article, a magazine spread, or a screenshot and Gemini drafts a
-ready-to-post summary for X — grounded strictly in what is actually in the image, with the correct
-source attribution. Or record a conference session and get a structured field report you can mail to
-yourself in seconds.
+- **Today Feed**: Interest-ranked Hacker News top 10, curated Bengaluru Lu.ma tech & AI events, and daily trending arXiv GenAI research papers simplified for engineering leaders.
+- **Article → X**: Photograph / import / paste an article; Gemini drafts an authoritative, grounded post for X with verified attribution.
+- **Conference Reporter**: Capture slides and record up to 1 hour of speech-optimized session audio; Gemini synthesizes an executive field report.
+- **On-Device & Private**: No backend, no accounts. Direct HTTPS to Gemini and X.
 
-Built with Jetpack Compose, a single-Activity architecture, and a light, high-contrast UI with a
-Bengaluru identity.
-
-| Platform | Where | Status |
+| Platform | Directory | Status |
 |---|---|---|
-| **Android** | [`app/`](app/) | The full app, in daily use on a Pixel 10 |
-| **iOS — Namma Omnibrief Lite** | [`ios/`](ios/) (branch `ios-lite`) | SwiftUI port of Today, X Drafter, Archive and Settings. Unit tested and building; real-iPhone shakedown in progress. **Start with [ios/README.md](ios/README.md)** |
+| **Android** | [`app/`](app/) | Full Jetpack Compose app in daily use on Pixel |
+| **iOS (YenGuru)** | [`ios/`](ios/) | Native SwiftUI app with Today (HN + BLR Lu.ma + arXiv AI), parallelized X Drafter, background Conference Reporter, Archive, and Lock Screen notifications. Verified on iPhone. Start with [ios/README.md](ios/README.md) |
 
-> Working on this codebase (human or AI)? Read [AGENTS.md](AGENTS.md) first — it documents the build
-> prerequisites, the secrets policy and several non-obvious constraints.
+> Working on this codebase (human or AI)? Read [AGENTS.md](AGENTS.md) and [ios/AGENTS.md](ios/AGENTS.md) first —
+> they document the build prerequisites, secrets policy, and architectural invariants.
 
 ---
 
 ## Contents
 
-**New here?** Read [Getting started with Android Studio](#getting-started-with-android-studio), then
-[Adding your keys](#adding-your-keys). That is everything you need to run the app.
-
-**On an iPhone?** Read [Running on iOS](#running-on-ios-namma-omnibrief-lite) for the summary, then
-[ios/README.md](ios/README.md) for the step-by-step guide (Simulator, free Apple ID, TestFlight).
+**On an iPhone?** Read [ios/README.md](ios/README.md) for the setup guide (Simulator, free Apple ID, TestFlight).
+**On Android?** Read [Getting started with Android Studio](#getting-started-with-android-studio), then [Adding your keys](#adding-your-keys).
 
 - [Features](#features)
-- [Screenshots](#screenshots)
+- [Screenshots — iOS (YenGuru)](#screenshots--ios-yenguru)
+- [Screenshots — Android](#screenshots--android)
 - [Built with Google Antigravity](#built-with-google-antigravity)
-- [Getting started with Android Studio](#getting-started-with-android-studio)
-- [Building from the command line](#building-from-the-command-line)
 - [Adding your keys](#adding-your-keys)
+- [Model selection & Fallback Chain](#model-selection)
 - [Posting to X: which credentials do you need?](#posting-to-x-which-credentials-do-you-need)
-- [Model selection](#model-selection)
 - [Architecture](#architecture)
 - [Testing](#testing)
-- [Deploying](#deploying)
-- [Running on iOS (Namma Omnibrief Lite)](#running-on-ios-namma-omnibrief-lite)
-- [Roadmap](#roadmap)
-- [Troubleshooting](#troubleshooting)
 - [Privacy](#privacy)
 - [License](#license)
 
@@ -50,92 +39,83 @@ Bengaluru identity.
 
 ## Features
 
-### 1. Today — your Hacker News top 10
+### 1. Today — Your Daily Executive Intelligence Hub
 
-The screen the app opens on. It pulls live stories from Hacker News and ranks them against a fixed
-set of interests — **GenAI, OpenAI, Gemini, Google, Anthropic, India tech** — rather than by raw
-popularity, so a 2000-point story about an unrelated topic will not push out a relevant one.
+The launch screen of the app, populated immediately without requiring an API key.
 
-- **No key required.** It uses the public, keyless [Algolia Hacker News Search
-  API](https://hn.algolia.com/api), so the home screen is populated the very first time you launch
-  the app, before you have configured anything.
-- **Ranking**: `points + 600 × (interest matches) + 250 if currently on the HN front page`. A
-  diversity cap of 3 stories per interest stops a single big news day filling the whole list.
-- **Stays current on its own**: refreshes **every hour** while the app is running, and again
-  **whenever you reopen the app** if the feed is more than 15 minutes old. The header shows the last
-  fetch time, and the refresh button forces one at any time.
-- **Each story shows its age** — "42m ago", "6h ago", "2d ago" — taken from the story's actual
-  Hacker News post time, not from when the app fetched it. The labels tick over on their own.
-- **Sort by relevance or by date**: the **For you / Newest** toggle under the header switches
-  between the interest ranking above and strict newest-first. Both show the same ten stories, so
-  nothing is hidden either way, and your choice is remembered between launches.
-- **Loading state**: shimmering placeholder cards while the fetch is in flight.
-- **Tap a card** to open the article, or tap **Draft** to pipe that headline straight into the
-  Article → X flow.
+- **Hacker News Signal**: Pulls live stories via Algolia and interest-ranks them against **GenAI, OpenAI, Gemini, Google, Anthropic, and India Tech**.
+  - **Diversity Cap**: Maximum 3 stories per interest with score backfill.
+  - **Freshness**: Auto-refreshes hourly and whenever reopened if older than 15 minutes.
+  - **Sorting**: Toggle between **For you** (interest-ranked) and **Newest** (strict chronological).
+  - **Lock Screen Signal**: Pushes the #1 trending story to your iPhone Lock Screen hourly.
+- **Bengaluru Tech & AI Events (Lu.ma)**:
+  - Curates upcoming demo nights, builder meetups, and summits across Koramangala, Indiranagar, and HSR Layout.
+  - Search-grounded with Gemini and cached with 8-hour TTL (~3 times daily) + manual pull-to-refresh.
+  - One-tap "Register on Lu.ma" link.
+- **Daily Trending arXiv GenAI Paper (ELI5 for Tech Leaders)**:
+  - Fetches top recent `cs.AI` / `cs.CL` research papers directly from arXiv.
+  - Gemini explains the paper without mathematical jargon: **Core Concept & Analogy**, **The Bottleneck Solved**, **Novel Breakthrough**, **Engineering Implication for Builders**, and **2-Minute CTO Takeaway**.
+  - Includes a "Next Trending Paper" browser and direct "Open Full PDF" action.
 
-### 2. Article → X
+### 2. Article → X Drafter
 
-- **Capture or import**: take a photo, pick from the gallery, or paste raw text.
-- **Batch of up to 10 images**: queue several photos at once. Each image is analysed independently
-  and produces **its own post draft** — a newspaper page with three articles you photographed
-  separately becomes three separate posts, not one blended mush.
-- **Focused analysis**: the prompt instructs the model to lock on to the single dominant story in
-  the frame and ignore peripheral columns, adjacent headlines, sidebars and advertisements that
-  crept in at the edge of the shot. Every draft reports the `Main topic analysed` so you can verify
-  it picked the right story.
-- **Strictly grounded**: no editorialising, no outside knowledge, no invented figures or quotes, no
-  emojis. If a fact is not in the image, it does not appear in the post.
-- **Source attribution**: the masthead is detected from the image (WSJ, FT, NYT, The Hindu, Times of
-  India, Economic Times, Deccan Herald, ...) and credited in the post.
-- **Review then publish**: nothing is posted automatically. Review and edit every draft in the
-  queue, remove the ones you don't want, then **Approve & Post All** publishes them one by one with
-  spacing between calls, showing per-draft status.
-- **The photo goes with the post**: each draft carries its own source image, and that image is
-  uploaded and attached to its tweet. Needs the `media.write` scope — see
-  [Attaching the photo](#attaching-the-photo-you-need-the-mediawrite-scope). Can be turned off in
-  Settings.
-- **Start fresh**: one control clears the attached photos, the pasted text and the whole draft
-  queue, so the next article starts from a clean page instead of inheriting the last one's images.
-- **X Blue long-form** supported via a toggle in Settings.
+- **Capture or import**: take photos (batch of up to 10 images), pick from gallery, or paste text.
+- **Concurrent Analysis**: Parallelized execution via Swift `withTaskGroup`, reducing a 9-image batch from ~50s down to ~5s.
+- **Strictly Grounded (8 Rules)**: Lock on to the single dominant story, ignore peripheral edge noise/ads, no editorialising, no outside knowledge, no emojis, ≤260 characters.
+- **Source Attribution & Retargeting**: Changing the source chip case-insensitively retargets existing unposted drafts, the attribution line, and the local archive in-place.
+- **Review & Publish**: Edit any draft before posting. Supports image attachment (`media.write` scope) and X Premium/Blue accounts.
 
 ### 3. Conference Reporter
 
-Capture slides, record audio notes and session metadata, then synthesize a structured report:
-executive summary, key takeaways, slide insights, notable quotes and action items.
+- **Presentation Slides**: Capture or pick up to 30 slides with thumbnail carousel.
+- **Live Session Audio Recording**:
+  - Voice-optimized AAC compression (22.05 kHz mono @ 28 kbps), keeping a full 1-hour session under 13 MB (well beneath Gemini's 20 MB inline payload limit).
+  - **Background Audio**: Enabled via `UIBackgroundModes: audio` — records uninterrupted even if the screen locks or you switch apps.
+  - **Live Feedback**: Real-time elapsed timer, 18-band reactive waveform, pulsing indicator, and live file size counter.
+- **Executive Report Synthesis**: Gemini multimodal reasoning blends slide diagrams and spoken arguments into:
+  Executive Summary, Key Takeaways, Slide Insights, Action Items, and Markdown Report with one-tap system Share Sheet export.
 
-### 4. History, Email and Drive
+### 4. Archive (10-Item FIFO Rollover)
 
-- The last **10** briefs are stored locally (Room, FIFO rollover). Nothing is uploaded to a server.
-- Any brief can be emailed to yourself via Gmail or saved to Google Drive as Markdown, using
-  standard Android share intents.
+- Stored strictly on-device (Room on Android, Codable JSON store on iOS).
+- Retargets source in-place and rolls over FIFO at 10 items.
 
-### 5. Adjustable text size
+### 5. Settings, Models & Lock Screen Feed
 
-**Settings → Appearance → Text Size** scales every piece of type in the app — five steps from
-Compact to Extra Large. Each option renders its own preview at its own scale, so you can see the
-result before you commit to it. The default is **Comfortable (1.15×)**, deliberately larger than
-stock Material. The change applies immediately, with no restart.
-
-The one exception is the bottom navigation bar: five tabs share the width, so its labels grow with
-the setting only as far as they still fit on one line. Past that they hold their size rather than
-wrapping "Conference" onto a second line and pushing the bar up over the content.
+- **Gemini Fallback Chain**: Primary **Gemini 3.8 Flash** → Backup **Gemini 3.7 Flash** → Last resort **Gemini 4 Argon**.
+- **Lock Screen Hourly Feed**: Toggle hourly push notifications of the #1 tech headline directly to your iPhone Lock Screen.
+- **Text Size**: 5 scale steps (Compact to Extra Large, 1.15× Comfortable default) applied immediately.
+- **Bulk Import**: Paste `.env` blocks to configure all keys instantly.
 
 ---
 
-## Screenshots
+## Screenshots — iOS (YenGuru)
 
-Captured on a Pixel 10 (1080 × 2424, Android 17) running the debug build, at the default
-**Comfortable (1.15×)** text size.
+Captured on iPhone running iOS 18+ at the default **Comfortable (1.15×)** text size.
+
+| Hacker News Signal | BLR Tech Events (Lu.ma) | Trending arXiv GenAI |
+|:---:|:---:|:---:|
+| ![Hacker News Signal](docs/screenshots/ios/01-today-hn.png) | ![Bengaluru Lu.ma Events](docs/screenshots/ios/02-today-luma.png) | ![Daily Trending arXiv](docs/screenshots/ios/03-today-arxiv.png) |
+| Interest-ranked top 10 with age ticker, Draft action, and hourly refresh. | Curated Bengaluru AI demo nights & founder meetups from Lu.ma. | Deep research simplified for tech leaders with 2-min CTO takeaway & PDF. |
+
+| Article → X Drafter | Conference Intelligence | Settings & Lock Screen |
+|:---:|:---:|:---:|
+| ![Article to X Drafter](docs/screenshots/ios/04-article-drafter.png) | ![Conference Intelligence](docs/screenshots/ios/05-conference.png) | ![Settings](docs/screenshots/ios/06-settings.png) |
+| Parallelized batch analysis with 8-rule grounding and source attribution. | 1-hour speech audio recording with live waveform & slide synthesis. | Gemini 3.8/3.7/4-argon model chain, text scaling & lock screen feed. |
+
+---
+
+## Screenshots — Android
+
+Captured on Pixel 10 (Android 17) at **Comfortable (1.15×)** text size.
 
 | Today | X Drafter | Conference |
-|---|---|---|
-| ![Today — Hacker News top 10 ranked by interest](docs/screenshots/01-today.png) | ![Article to X drafter](docs/screenshots/02-drafter.png) | ![Conference reporter](docs/screenshots/03-conference.png) |
-| Your top 10, interest-ranked, with **For you / Newest** sorting and a story age on every card. | Photograph or paste an article, then review the draft before anything is published. | Slides, live audio and session metadata in one capture. |
+|:---:|:---:|:---:|
+| ![Today](docs/screenshots/01-today.png) | ![Article to X](docs/screenshots/02-drafter.png) | ![Conference](docs/screenshots/03-conference.png) |
 
 | Archive | Settings | Text Size |
-|---|---|---|
-| ![Recent briefings archive](docs/screenshots/04-archive.png) | ![Settings](docs/screenshots/05-settings.png) | ![Text size options](docs/screenshots/06-text-size.png) |
-| The last 10 briefs, stored locally in Room with FIFO rollover. | Keys, model, and behaviour toggles — all on-device. | Five steps, each previewing itself at its own scale. |
+|:---:|:---:|:---:|
+| ![Archive](docs/screenshots/04-archive.png) | ![Settings](docs/screenshots/05-settings.png) | ![Text Size](docs/screenshots/06-text-size.png) |
 
 ---
 
