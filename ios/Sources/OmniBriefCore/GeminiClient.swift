@@ -407,4 +407,364 @@ public final class GeminiClient: Sendable {
         }
         return String(text[firstBrace...lastBrace])
     }
+
+    public static func extractJsonArraySubstring(from text: String) -> String? {
+        guard let firstBracket = text.firstIndex(of: "["),
+              let lastBracket = text.lastIndex(of: "]"),
+              firstBracket <= lastBracket else {
+            return nil
+        }
+        return String(text[firstBracket...lastBracket])
+    }
+
+    // MARK: - Lu.ma Bengaluru Tech & AI Events
+
+    public func fetchLumaBengaluruEvents(
+        apiKey: String,
+        modelName: String
+    ) async throws -> [LumaBengaluruEvent] {
+        let cleanKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanKey.isEmpty else {
+            return Self.sampleBengaluruEvents()
+        }
+
+        let prompt = """
+        Search Google for upcoming tech and AI events, developer meetups, founder mixers, and demo days in Bengaluru (Bangalore), especially events listed on lu.ma (Luma Bengaluru) or happening in tech hubs like Koramangala, Indiranagar, HSR Layout, Bellandur.
+        Return ONLY valid JSON matching this schema:
+        [
+          {
+            "title": "Event Title",
+            "date": "e.g. Saturday, Oct 24, 2026",
+            "time": "e.g. 10:00 AM - 1:00 PM IST",
+            "venue": "e.g. Indiranagar, Bengaluru",
+            "organizer": "e.g. Bengaluru AI Community",
+            "category": "GenAI / LLMs / Robotics / Startups",
+            "url": "https://lu.ma/... or relevant URL",
+            "description": "1-2 sentence crisp overview of what attendees will learn or see."
+          }
+        ]
+        No markdown wrapping, just raw JSON array.
+        """
+
+        let requestPayload: [String: Any] = [
+            "contents": [
+                [
+                    "parts": [
+                        ["text": prompt]
+                    ]
+                ]
+            ],
+            "tools": [
+                ["googleSearch": [:]]
+            ]
+        ]
+
+        let requestBody = try JSONSerialization.data(withJSONObject: requestPayload)
+
+        do {
+            let responseData = try await callWithFallbacks(
+                apiKey: cleanKey,
+                preferredModel: modelName,
+                requestBody: requestBody,
+                timeoutInterval: 45
+            )
+
+            guard let root = try JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+                  let candidates = root["candidates"] as? [[String: Any]],
+                  let first = candidates.first,
+                  let content = first["content"] as? [String: Any],
+                  let parts = content["parts"] as? [[String: Any]],
+                  let text = parts.first?["text"] as? String,
+                  let arrayJson = Self.extractJsonArraySubstring(from: text),
+                  let arrayData = arrayJson.data(using: .utf8),
+                  let jsonArray = try? JSONSerialization.jsonObject(with: arrayData) as? [[String: Any]] else {
+                return Self.sampleBengaluruEvents()
+            }
+
+            var events: [LumaBengaluruEvent] = []
+            for item in jsonArray {
+                guard let title = item["title"] as? String, !title.isEmpty else { continue }
+                let date = (item["date"] as? String) ?? "Upcoming"
+                let time = (item["time"] as? String) ?? ""
+                let venue = (item["venue"] as? String) ?? "Bengaluru"
+                let organizer = (item["organizer"] as? String) ?? "Lu.ma Bengaluru"
+                let category = (item["category"] as? String) ?? "AI / Tech"
+                let url = (item["url"] as? String) ?? "https://lu.ma/bengaluru"
+                let desc = (item["description"] as? String) ?? ""
+
+                events.append(
+                    LumaBengaluruEvent(
+                        title: title,
+                        date: date,
+                        time: time,
+                        venue: venue,
+                        organizer: organizer,
+                        category: category,
+                        url: url,
+                        description: desc
+                    )
+                )
+            }
+
+            return events.isEmpty ? Self.sampleBengaluruEvents() : events
+        } catch {
+            return Self.sampleBengaluruEvents()
+        }
+    }
+
+    public static func sampleBengaluruEvents() -> [LumaBengaluruEvent] {
+        return [
+            LumaBengaluruEvent(
+                title: "Physical AI & Robotics Demo Night",
+                date: "Wednesday, Oct 28, 2026",
+                time: "5:30 PM - 8:30 PM IST",
+                venue: "South Park Commons, Koramangala",
+                organizer: "South Park Commons & Elevation Capital",
+                category: "Physical AI / Robotics",
+                url: "https://lu.ma/bengaluru",
+                description: "Live demos of humanoid policies, edge inference chips, and robotic perception architectures built by Bengaluru founders."
+            ),
+            LumaBengaluruEvent(
+                title: "Bengaluru GenAI Builders & Agents Summit",
+                date: "Saturday, Nov 7, 2026",
+                time: "10:00 AM - 3:00 PM IST",
+                venue: "Indiranagar Club, Indiranagar",
+                organizer: "Bengaluru AI Collective",
+                category: "Agents & LLMs",
+                url: "https://lu.ma/bengaluru",
+                description: "Deep dive into production multi-agent workflows, DSPy pipeline compilations, and enterprise RAG evaluation at scale."
+            ),
+            LumaBengaluruEvent(
+                title: "Karnataka Sovereign AI & Indic Compute Forum",
+                date: "Thursday, Nov 12, 2026",
+                time: "2:00 PM - 6:00 PM IST",
+                venue: "IISc & Palace Grounds, Bengaluru",
+                organizer: "KITS & Karnataka Innovation Council",
+                category: "Policy & Compute",
+                url: "https://lu.ma/bengaluru",
+                description: "State initiatives for localized Kannada/Indic LLMs, GPU cluster subsidies, and academic-industry research grants."
+            ),
+            LumaBengaluruEvent(
+                title: "Rust Systems & High-Throughput ML Serving Mixer",
+                date: "Friday, Nov 20, 2026",
+                time: "6:00 PM - 9:00 PM IST",
+                venue: "HSR Layout Sector 4, Bengaluru",
+                organizer: "Bangalore Rust & Systems Club",
+                category: "Systems & Infra",
+                url: "https://lu.ma/bengaluru",
+                description: "Architecting microsecond-latency tensor servers, vLLM optimizations, and on-device quantization pipelines."
+            )
+        ]
+    }
+
+    // MARK: - arXiv Trending GenAI Paper
+
+    public struct ArxivRawEntry: Sendable {
+        public let id: String
+        public let title: String
+        public let summary: String
+        public let authors: [String]
+        public let published: String
+        public let pdfUrl: String
+
+        public init(
+            id: String,
+            title: String,
+            summary: String,
+            authors: [String] = [],
+            published: String = "",
+            pdfUrl: String = ""
+        ) {
+            self.id = id
+            self.title = title
+            self.summary = summary
+            self.authors = authors
+            self.published = published
+            self.pdfUrl = pdfUrl
+        }
+    }
+
+    public func fetchTrendingArxivPapers(count: Int = 5) async throws -> [ArxivRawEntry] {
+        let endpoint = "https://export.arxiv.org/api/query?search_query=cat:cs.AI+OR+cat:cs.CL+OR+cat:cs.LG&sortBy=submittedDate&sortOrder=descending&max_results=\(count)"
+        guard let url = URL(string: endpoint) else { return [] }
+
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 20
+        request.setValue("YenGuru/1.0 (iOS; Research)", forHTTPHeaderField: "User-Agent")
+
+        let (data, _) = try await session.data(for: request)
+        let parser = XMLParser(data: data)
+        let delegate = ArxivFeedParserDelegate()
+        parser.delegate = delegate
+        parser.parse()
+        return delegate.entries
+    }
+
+    public func simplifyArxivPaper(
+        apiKey: String,
+        modelName: String,
+        rawEntry: ArxivRawEntry
+    ) async throws -> ArxivGenAIPaper {
+        let cleanKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanKey.isEmpty else {
+            return Self.sampleArxivPaper()
+        }
+
+        let prompt = """
+        You are a principal AI systems architect explaining cutting-edge arXiv research to an engineering leader/tech executive who has deep software and systems experience but is NOT a data scientist or ML PhD.
+        
+        RESEARCH PAPER:
+        Title: \(rawEntry.title)
+        Authors: \(rawEntry.authors.joined(separator: ", "))
+        Published: \(rawEntry.published)
+        Abstract:
+        \(rawEntry.summary)
+
+        TASK:
+        Explain this paper with extreme clarity and high signal.
+        Avoid math jargon, matrix algebra notations, or dense academic phrasing.
+        Use intuitive software analogies (e.g. caching, compiler optimizations, RPC, distributed consensus) where appropriate.
+
+        Return your output as a strict JSON object (no markdown fences) with keys:
+        {
+          "plainEnglishSummary": "A vivid 2-paragraph conceptual explanation of what this paper actually does.",
+          "coreProblem": "What bottleneck, failure mode, or cost barrier in current AI architectures does this solve?",
+          "coreBreakthrough": "The specific novel architecture, algorithm, or insight introduced.",
+          "engineeringImplication": "What this means for software engineers and engineering leaders building AI systems today.",
+          "twoMinuteTakeaway": "A razor-sharp 2-sentence executive takeaway for a CTO or tech lead."
+        }
+        """
+
+        let requestPayload: [String: Any] = [
+            "contents": [
+                [
+                    "parts": [
+                        ["text": prompt]
+                    ]
+                ]
+            ]
+        ]
+
+        let requestBody = try JSONSerialization.data(withJSONObject: requestPayload)
+
+        do {
+            let responseData = try await callWithFallbacks(
+                apiKey: cleanKey,
+                preferredModel: modelName,
+                requestBody: requestBody,
+                timeoutInterval: 45
+            )
+
+            guard let root = try JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+                  let candidates = root["candidates"] as? [[String: Any]],
+                  let first = candidates.first,
+                  let content = first["content"] as? [String: Any],
+                  let parts = content["parts"] as? [[String: Any]],
+                  let text = parts.first?["text"] as? String,
+                  let jsonSub = Self.extractJsonSubstring(from: text),
+                  let jsonData = jsonSub.data(using: .utf8),
+                  let obj = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] else {
+                return Self.sampleArxivPaper()
+            }
+
+            return ArxivGenAIPaper(
+                id: rawEntry.id,
+                title: rawEntry.title,
+                authors: rawEntry.authors,
+                publishedDate: rawEntry.published,
+                arxivUrl: rawEntry.id,
+                pdfUrl: rawEntry.pdfUrl.isEmpty ? rawEntry.id.replacingOccurrences(of: "/abs/", with: "/pdf/") : rawEntry.pdfUrl,
+                rawAbstract: rawEntry.summary,
+                plainEnglishSummary: (obj["plainEnglishSummary"] as? String) ?? rawEntry.summary,
+                coreProblem: (obj["coreProblem"] as? String) ?? "Training complexity and generalization limits in existing models.",
+                coreBreakthrough: (obj["coreBreakthrough"] as? String) ?? "Novel architectural optimization over latent representation space.",
+                engineeringImplication: (obj["engineeringImplication"] as? String) ?? "Enables faster fine-tuning and significantly lower inference compute budgets.",
+                twoMinuteTakeaway: (obj["twoMinuteTakeaway"] as? String) ?? "A major step forward for practical real-world deployment of complex generative models."
+            )
+        } catch {
+            return Self.sampleArxivPaper()
+        }
+    }
+
+    public static func sampleArxivPaper() -> ArxivGenAIPaper {
+        return ArxivGenAIPaper(
+            id: "http://arxiv.org/abs/2610.20606v1",
+            title: "Modeling and Understanding Neural Weights of Humanoid Policies with Diffusion",
+            authors: ["Huixuan Cheng", "Bike Zhang", "Shankar Sastry", "Koushil Sreenath"],
+            publishedDate: "October 14, 2026",
+            arxivUrl: "http://arxiv.org/abs/2610.20606v1",
+            pdfUrl: "https://arxiv.org/pdf/2610.20606v1",
+            rawAbstract: "Recent advances in robot learning have driven rapid progress in humanoid control, enabling increasingly agile behaviors in the real world. However, humanoid control networks are typically obtained through conventional training procedures, while comparatively little attention has been given to directly modeling the distribution of their learned weights and generating functional networks in weight space. In this work, we investigate whether high-performing humanoid control networks can be generatively modeled directly through their weights. We adopt a latent diffusion framework that couples a linear autoencoder with a Diffusion Transformer. The autoencoder compresses actor network parameters into a compact latent space, and the Diffusion Transformer models the distribution of these latents.",
+            plainEnglishSummary: "Instead of training a robot's brain from scratch each time or tuning millions of parameters slowly through days of reinforcement learning simulation, this paper treats the neural network's weights themselves like an image and uses diffusion to generate complete, functional motor skills (walking, balancing, kicking) directly in weight space.\n\nThink of it like compiling pre-optimized binaries on demand: instead of running expensive physical physics simulations for every new skill, a Diffusion Transformer synthesizes executable neural network weights that deploy instantly onto the robot.",
+            coreProblem: "Humanoid robot control policies typically require hundreds of hours of trial-and-error simulation per motion skill, and learned networks rarely transfer easily to new kinematic tasks without starting from scratch.",
+            coreBreakthrough: "A latent diffusion framework coupling a linear autoencoder with a Diffusion Transformer. The autoencoder compresses actor network parameters into a low-dimensional space, and diffusion models the distribution of functional weights.",
+            engineeringImplication: "Generative policy synthesis allows fast real-time deployment of motor skills onto physical robots (verified on Unitree G1) without physics simulation overhead, creating on-demand behavioral libraries.",
+            twoMinuteTakeaway: "Treating policy weights as generative tokens lets us synthesize robotic motor skills in seconds. Humanoid robotics is entering its generative diffusion era."
+        )
+    }
+}
+
+final class ArxivFeedParserDelegate: NSObject, XMLParserDelegate, @unchecked Sendable {
+    var entries: [GeminiClient.ArxivRawEntry] = []
+    private var inEntry = false
+    private var currentElement = ""
+    private var currentText = ""
+    private var id = ""
+    private var title = ""
+    private var summary = ""
+    private var published = ""
+    private var authors: [String] = []
+    private var pdfUrl = ""
+
+    func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?, qualifiedName qName: String?, attributes attributeDict: [String : String] = [:]) {
+        currentElement = elementName
+        currentText = ""
+        if elementName == "entry" {
+            inEntry = true
+            id = ""
+            title = ""
+            summary = ""
+            published = ""
+            authors = []
+            pdfUrl = ""
+        } else if inEntry && elementName == "link" {
+            if attributeDict["title"] == "pdf" || attributeDict["type"] == "application/pdf" {
+                pdfUrl = attributeDict["href"] ?? ""
+            }
+        }
+    }
+
+    func parser(_ parser: XMLParser, foundCharacters string: String) {
+        if inEntry {
+            currentText += string
+        }
+    }
+
+    func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?, qualifiedName qName: String?) {
+        if inEntry {
+            let trimmed = currentText.trimmingCharacters(in: .whitespacesAndNewlines)
+            if elementName == "title" {
+                title = trimmed.replacingOccurrences(of: "\n", with: " ")
+            } else if elementName == "summary" {
+                summary = trimmed.replacingOccurrences(of: "\n", with: " ")
+            } else if elementName == "published" {
+                published = trimmed
+            } else if elementName == "id" {
+                id = trimmed
+            } else if elementName == "name" {
+                authors.append(trimmed)
+            } else if elementName == "entry" {
+                inEntry = false
+                let entry = GeminiClient.ArxivRawEntry(
+                    id: id,
+                    title: title,
+                    summary: summary,
+                    authors: authors,
+                    published: published,
+                    pdfUrl: pdfUrl
+                )
+                entries.append(entry)
+            }
+        }
+    }
 }

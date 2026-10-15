@@ -12,6 +12,7 @@ public struct SettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 textSizeSection
+                lockScreenSection
                 geminiConfigSection
                 xCredentialsSection
                 bulkImportSection
@@ -26,6 +27,40 @@ public struct SettingsView: View {
             .padding(16)
         }
         .background(OmniTheme.paperBackground.ignoresSafeArea())
+    }
+
+    private var lockScreenSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("LOCK SCREEN & HOURLY SIGNAL")
+                .omniScaledFont(size: 11, weight: .bold, scale: viewModel.fontScale)
+                .foregroundColor(OmniTheme.primaryTerracotta)
+
+            Toggle("Show Top Story on iPhone Lock Screen", isOn: Binding(
+                get: { viewModel.lockScreenHourlyEnabled },
+                set: { viewModel.setLockScreenHourlyEnabled($0) }
+            ))
+            .omniScaledFont(size: 13, weight: .semibold, scale: viewModel.fontScale)
+
+            Text("Pushes the #1 AI/tech headline to your iPhone Lock Screen automatically every hour so you can glance at breaking tech signal without unlocking.")
+                .omniScaledFont(size: 12, weight: .regular, scale: viewModel.fontScale)
+                .foregroundColor(OmniTheme.mutedSlate)
+
+            HStack(spacing: 6) {
+                Image(systemName: "lock.shield.fill")
+                    .foregroundColor(OmniTheme.forestGreen)
+                    .font(.system(size: 12))
+                Text("Lock Screen Widget: Long-press Lock Screen > Customise > Add YenGuru widget.")
+                    .omniScaledFont(size: 11, weight: .medium, scale: viewModel.fontScale)
+                    .foregroundColor(OmniTheme.deepInk)
+            }
+            .padding(10)
+            .background(OmniTheme.subtleSurface)
+            .cornerRadius(8)
+        }
+        .padding(16)
+        .background(OmniTheme.cardSurface)
+        .cornerRadius(14)
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(OmniTheme.borderWarm, lineWidth: 1))
     }
 
     private var textSizeSection: some View {
@@ -75,7 +110,7 @@ public struct SettingsView: View {
                 .textFieldStyle(.roundedBorder)
                 .omniScaledFont(size: 13, weight: .regular, scale: viewModel.fontScale)
 
-            Text("Preferred Model (automatic fallback chain: 3.8 → 3.5 → 2.5)")
+            Text("Preferred Model (automatic fallback chain: 3.8 → 3.7 → 4-argon)")
                 .omniScaledFont(size: 12, weight: .semibold, scale: viewModel.fontScale)
                 .foregroundColor(OmniTheme.deepInk)
 

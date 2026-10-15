@@ -63,7 +63,7 @@ public final class AudioSessionManager: NSObject, ObservableObject, AVAudioRecor
                 try audioSession.setCategory(
                     .playAndRecord,
                     mode: .spokenAudio,
-                    options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP]
+                    options: [.defaultToSpeaker, .allowBluetooth]
                 )
             } catch {
                 try audioSession.setCategory(.playAndRecord, options: [.defaultToSpeaker])
@@ -139,10 +139,15 @@ public final class AudioSessionManager: NSObject, ObservableObject, AVAudioRecor
         meterTimer = nil
         amplitude = 0.0
 
-        if let recorder = audioRecorder, recorder.isRecording || state == .paused {
-            recorder.stop()
+        if let recorder = audioRecorder {
+            if recorder.isRecording || state == .paused {
+                recorder.stop()
+            }
         }
         audioRecorder = nil
+
+        // Cleanly deactivate session to allow other audio outputs to resume
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
 
         if let url = recordedFileURL, FileManager.default.fileExists(atPath: url.path) {
             state = .stopped
@@ -224,11 +229,17 @@ public final class AudioSessionManager: NSObject, ObservableObject, AVAudioRecor
     }
 
     public func updateFileSize() {
-        guard let url = recordedFileURL,
-              let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
-              let size = attrs[.size] as? Int64 else { return }
-        self.fileSizeBytes = size
-        self.fileSizeDescription = ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
+        guard let url = recordedFileURL else { return }
+        if let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+           let size = attrs[.size] as? Int64, size > 0 {
+            self.fileSizeBytes = size
+            self.fileSizeDescription = ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
+        } else if durationSeconds > 0 {
+            // If disk buffer hasn't flushed yet, show live estimated AAC size (~3.5 KB/sec at 28 kbps)
+            let estimatedBytes = Int64(durationSeconds * 3500)
+            self.fileSizeBytes = estimatedBytes
+            self.fileSizeDescription = ByteCountFormatter.string(fromByteCount: estimatedBytes, countStyle: .file)
+        }
     }
 
     // MARK: - Delegates
@@ -249,17 +260,15 @@ public final class AudioSessionManager: NSObject, ObservableObject, AVAudioRecor
 
     private func startMeterTimer() {
         meterTimer?.invalidate()
-        let timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                guard let self = self, let recorder = self.audioRecorder, self.state == .recording else { return }
-                recorder.updateMeters()
-                self.durationSeconds = Int(recorder.currentTime)
-                let avg = recorder.averagePower(forChannel: 0)
-                // Normalize from [-60 dB, 0 dB] to [0.0, 1.0]
-                let linear = max(0.0, (avg + 60.0) / 60.0)
-                self.amplitude = linear
-                self.updateFileSize()
-            }
+        let timer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
+            guard let self = self, let recorder = self.audioRecorder, self.state == .recording else { return }
+            recorder.updateMeters()
+            self.durationSeconds = Int(recorder.currentTime)
+            let avg = recorder.averagePower(forChannel: 0)
+            // Normalize from [-60 dB, 0 dB] to [0.0, 1.0]
+            let linear = max(0.0, (avg + 60.0) / 60.0)
+            self.amplitude = linear
+            self.updateFileSize()
         }
         RunLoop.main.add(timer, forMode: .common)
         self.meterTimer = timer

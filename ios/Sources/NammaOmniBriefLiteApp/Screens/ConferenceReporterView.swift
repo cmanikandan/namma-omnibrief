@@ -4,14 +4,17 @@ import PhotosUI
 @MainActor
 public struct ConferenceReporterView: View {
     @ObservedObject var viewModel: MainViewModel
+    @ObservedObject private var audioManager: AudioSessionManager
 
     @State private var showingCamera = false
     @State private var selectedPickerItems: [PhotosPickerItem] = []
     @State private var copiedToClipboard = false
     @State private var showingShareSheet = false
+    @State private var isPulsingRecord = false
 
     public init(viewModel: MainViewModel) {
         self.viewModel = viewModel
+        self._audioManager = ObservedObject(wrappedValue: viewModel.audioManager)
     }
 
     public var body: some View {
@@ -255,24 +258,24 @@ public struct ConferenceReporterView: View {
                     .foregroundColor(OmniTheme.primaryTerracotta)
                 Spacer()
 
-                if viewModel.audioManager.state != .idle {
+                if audioManager.state != .idle {
                     Button("Discard") {
-                        viewModel.audioManager.discardRecording()
+                        audioManager.discardRecording()
                     }
                     .omniScaledFont(size: 10, weight: .semibold, scale: viewModel.fontScale)
                     .foregroundColor(OmniTheme.errorCrimson)
                 }
             }
 
-            switch viewModel.audioManager.state {
+            switch audioManager.state {
             case .idle:
                 Button {
                     Task {
                         viewModel.conferenceError = nil
-                        let granted = await viewModel.audioManager.checkOrRequestPermission()
+                        let granted = await audioManager.checkOrRequestPermission()
                         if granted {
-                            viewModel.audioManager.startRecording()
-                            if let err = viewModel.audioManager.errorMessage {
+                            audioManager.startRecording()
+                            if let err = audioManager.errorMessage {
                                 viewModel.conferenceError = err
                             }
                         } else {
@@ -296,23 +299,34 @@ public struct ConferenceReporterView: View {
             case .recording, .paused:
                 VStack(spacing: 12) {
                     HStack {
-                        Circle()
-                            .fill(viewModel.audioManager.state == .recording ? OmniTheme.errorCrimson : OmniTheme.mysoreGold)
-                            .frame(width: 10, height: 10)
+                        ZStack {
+                            if audioManager.state == .recording {
+                                Circle()
+                                    .stroke(OmniTheme.errorCrimson.opacity(0.4), lineWidth: 3)
+                                    .frame(width: 18, height: 18)
+                                    .scaleEffect(isPulsingRecord ? 1.4 : 1.0)
+                                    .opacity(isPulsingRecord ? 0.0 : 0.9)
+                                    .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: false), value: isPulsingRecord)
+                            }
+                            Circle()
+                                .fill(audioManager.state == .recording ? OmniTheme.errorCrimson : OmniTheme.mysoreGold)
+                                .frame(width: 10, height: 10)
+                        }
+                        .onAppear { isPulsingRecord = true }
 
-                        Text(viewModel.audioManager.state == .recording ? "RECORDING LIVE AUDIO" : "RECORDING PAUSED")
+                        Text(audioManager.state == .recording ? "RECORDING LIVE AUDIO" : "RECORDING PAUSED")
                             .omniScaledFont(size: 11, weight: .bold, scale: viewModel.fontScale)
                             .foregroundColor(OmniTheme.deepInk)
 
                         Spacer()
 
-                        let s = viewModel.audioManager.durationSeconds
+                        let s = audioManager.durationSeconds
                         VStack(alignment: .trailing, spacing: 2) {
                             Text(String(format: "%02d:%02d", s / 60, s % 60))
                                 .font(.system(size: 15, weight: .bold, design: .monospaced))
                                 .foregroundColor(OmniTheme.deepInk)
-                            if !viewModel.audioManager.fileSizeDescription.isEmpty {
-                                Text(viewModel.audioManager.fileSizeDescription)
+                            if !audioManager.fileSizeDescription.isEmpty {
+                                Text(audioManager.fileSizeDescription)
                                     .font(.system(size: 10, weight: .semibold, design: .monospaced))
                                     .foregroundColor(OmniTheme.mutedSlate)
                             }
@@ -322,22 +336,22 @@ public struct ConferenceReporterView: View {
                     // Live waveform amplitude bars
                     HStack(spacing: 4) {
                         ForEach(0..<18, id: \.self) { i in
-                            let amp = CGFloat(viewModel.audioManager.amplitude)
-                            let height = viewModel.audioManager.state == .recording
+                            let amp = CGFloat(audioManager.amplitude)
+                            let height = audioManager.state == .recording
                                 ? max(6.0, CGFloat((i % 5 + 1) * 6) * amp + 4.0)
                                 : 6.0
                             RoundedRectangle(cornerRadius: 2)
-                                .fill(OmniTheme.primaryTerracotta.opacity(0.8))
+                                .fill(OmniTheme.primaryTerracotta.opacity(0.85))
                                 .frame(width: 8, height: height)
-                                .animation(.spring(response: 0.2), value: viewModel.audioManager.amplitude)
+                                .animation(.spring(response: 0.15), value: audioManager.amplitude)
                         }
                     }
                     .frame(height: 36)
 
                     HStack(spacing: 12) {
-                        if viewModel.audioManager.state == .recording {
+                        if audioManager.state == .recording {
                             Button {
-                                viewModel.audioManager.pauseRecording()
+                                audioManager.pauseRecording()
                             } label: {
                                 HStack(spacing: 6) {
                                     Image(systemName: "pause.fill")
@@ -352,7 +366,7 @@ public struct ConferenceReporterView: View {
                             }
                         } else {
                             Button {
-                                viewModel.audioManager.resumeRecording()
+                                audioManager.resumeRecording()
                             } label: {
                                 HStack(spacing: 6) {
                                     Image(systemName: "play.fill")
@@ -368,7 +382,7 @@ public struct ConferenceReporterView: View {
                         }
 
                         Button {
-                            viewModel.audioManager.stopRecording()
+                            audioManager.stopRecording()
                         } label: {
                             HStack(spacing: 6) {
                                 Image(systemName: "stop.fill")
@@ -389,19 +403,19 @@ public struct ConferenceReporterView: View {
                     HStack {
                         Image(systemName: "waveform")
                             .foregroundColor(OmniTheme.forestGreen)
-                        let s = viewModel.audioManager.durationSeconds
-                        let sizeStr = viewModel.audioManager.fileSizeDescription.isEmpty ? "" : " • \(viewModel.audioManager.fileSizeDescription)"
+                        let s = audioManager.durationSeconds
+                        let sizeStr = audioManager.fileSizeDescription.isEmpty ? "" : " • \(audioManager.fileSizeDescription)"
                         Text("Audio Captured (\(String(format: "%02d:%02d", s / 60, s % 60))\(sizeStr))")
                             .omniScaledFont(size: 13, weight: .semibold, scale: viewModel.fontScale)
                             .foregroundColor(OmniTheme.deepInk)
                         Spacer()
 
                         Button {
-                            viewModel.audioManager.togglePlayPause()
+                            audioManager.togglePlayPause()
                         } label: {
                             HStack(spacing: 4) {
-                                Image(systemName: viewModel.audioManager.isPlaying ? "pause.fill" : "play.fill")
-                                Text(viewModel.audioManager.isPlaying ? "Pause" : "Play")
+                                Image(systemName: audioManager.isPlaying ? "pause.fill" : "play.fill")
+                                Text(audioManager.isPlaying ? "Pause" : "Play")
                             }
                             .omniScaledFont(size: 11, weight: .bold, scale: viewModel.fontScale)
                             .padding(.horizontal, 12)

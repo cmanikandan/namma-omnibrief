@@ -251,6 +251,33 @@ struct OmniBriefJITTestMain {
             "16. Gemini fallback chain (3.8-flash -> 3.7-flash -> 4-argon) and available models verified"
         )
 
+        // 9. Luma Bengaluru Events Model & JSON Array Parsing
+        let events = GeminiClient.sampleBengaluruEvents()
+        let sampleLumaText = "Here are events:\n[{\"title\":\"AI Demo\",\"date\":\"Tomorrow\",\"venue\":\"Koramangala\",\"organizer\":\"Luma\",\"category\":\"AI\",\"url\":\"https://lu.ma/blr\",\"description\":\"Demos\"}]\nThanks!"
+        let extractedArray = GeminiClient.extractJsonArraySubstring(from: sampleLumaText)
+        runner.check(
+            events.count >= 4
+                && events.contains { $0.venue.contains("Koramangala") }
+                && events.contains { $0.title.contains("Robotics") }
+                && extractedArray != nil
+                && extractedArray!.starts(with: "[")
+                && extractedArray!.hasSuffix("]"),
+            "17. Luma Bengaluru Events models, sample feeds, and JSON array extraction verified"
+        )
+
+        // 10. arXiv GenAI Paper Model & Conceptual Explainer Invariants
+        let samplePaper = GeminiClient.sampleArxivPaper()
+        runner.check(
+            !samplePaper.title.isEmpty
+                && samplePaper.authors.contains("Huixuan Cheng")
+                && !samplePaper.plainEnglishSummary.isEmpty
+                && !samplePaper.coreBreakthrough.isEmpty
+                && !samplePaper.engineeringImplication.isEmpty
+                && !samplePaper.twoMinuteTakeaway.isEmpty
+                && samplePaper.pdfUrl.contains("arxiv.org/pdf"),
+            "18. arXiv GenAI Paper model, technical plain-English breakdown, and PDF link verified"
+        )
+
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         print("Result: \(runner.passed) passed, \(runner.failed) failed")
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")

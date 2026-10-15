@@ -154,6 +154,31 @@ public final class AppPreferencesStore: @unchecked Sendable {
         set { defaults.set(newValue.id, forKey: "headline_sort") }
     }
 
+    public var lockScreenTopStoryEnabled: Bool {
+        get { defaults.bool(forKey: "lock_screen_top_story_enabled") }
+        set { defaults.set(newValue, forKey: "lock_screen_top_story_enabled") }
+    }
+
+    public var lumaEventsCache: String {
+        get { defaults.string(forKey: "luma_events_cache") ?? "" }
+        set { defaults.set(newValue, forKey: "luma_events_cache") }
+    }
+
+    public var lumaEventsCacheTimestamp: Int64 {
+        get { Int64(defaults.integer(forKey: "luma_events_cache_timestamp")) }
+        set { defaults.set(Int(newValue), forKey: "luma_events_cache_timestamp") }
+    }
+
+    public var arxivDailyPaperCache: String {
+        get { defaults.string(forKey: "arxiv_daily_paper_cache") ?? "" }
+        set { defaults.set(newValue, forKey: "arxiv_daily_paper_cache") }
+    }
+
+    public var arxivDailyPaperTimestamp: Int64 {
+        get { Int64(defaults.integer(forKey: "arxiv_daily_paper_timestamp")) }
+        set { defaults.set(Int(newValue), forKey: "arxiv_daily_paper_timestamp") }
+    }
+
     /// Parses `.env` formatted key=value lines pasted into Settings -> Bulk Import.
     /// Returns the number of recognized keys imported.
     @discardableResult

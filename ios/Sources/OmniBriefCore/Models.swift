@@ -252,3 +252,83 @@ public struct ConferenceReportResult: Equatable, Codable, Sendable {
         self.fullReportMarkdown = fullReportMarkdown
     }
 }
+
+/// An upcoming Tech / AI event or meetup in Bengaluru sourced from Lu.ma or Bengaluru tech communities.
+public struct LumaBengaluruEvent: Identifiable, Equatable, Codable, Sendable {
+    public let id: String
+    public let title: String
+    public let date: String
+    public let time: String
+    public let venue: String
+    public let organizer: String
+    public let category: String
+    public let url: String
+    public let description: String
+
+    public init(
+        id: String = UUID().uuidString,
+        title: String,
+        date: String,
+        time: String = "",
+        venue: String = "Bengaluru",
+        organizer: String = "",
+        category: String = "AI / Tech",
+        url: String = "https://lu.ma/bengaluru",
+        description: String = ""
+    ) {
+        self.id = id
+        self.title = title
+        self.date = date
+        self.time = time
+        self.venue = venue
+        self.organizer = organizer
+        self.category = category
+        self.url = url
+        self.description = description
+    }
+}
+
+/// A trending GenAI research paper from arXiv, simplified by Gemini for an engineering leader/techie.
+public struct ArxivGenAIPaper: Identifiable, Equatable, Codable, Sendable {
+    public let id: String
+    public let title: String
+    public let authors: [String]
+    public let publishedDate: String
+    public let arxivUrl: String
+    public let pdfUrl: String
+    public let rawAbstract: String
+    public let plainEnglishSummary: String
+    public let coreProblem: String
+    public let coreBreakthrough: String
+    public let engineeringImplication: String
+    public let twoMinuteTakeaway: String
+
+    public init(
+        id: String,
+        title: String,
+        authors: [String] = [],
+        publishedDate: String = "",
+        arxivUrl: String = "",
+        pdfUrl: String = "",
+        rawAbstract: String = "",
+        plainEnglishSummary: String = "",
+        coreProblem: String = "",
+        coreBreakthrough: String = "",
+        engineeringImplication: String = "",
+        twoMinuteTakeaway: String = ""
+    ) {
+        self.id = id
+        self.title = title
+        self.authors = authors
+        self.publishedDate = publishedDate
+        self.arxivUrl = arxivUrl
+        self.pdfUrl = pdfUrl
+        self.rawAbstract = rawAbstract
+        self.plainEnglishSummary = plainEnglishSummary
+        self.coreProblem = coreProblem
+        self.coreBreakthrough = coreBreakthrough
+        self.engineeringImplication = engineeringImplication
+        self.twoMinuteTakeaway = twoMinuteTakeaway
+    }
+}
+

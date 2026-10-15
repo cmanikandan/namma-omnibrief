@@ -1,6 +1,23 @@
 import Foundation
 import SwiftUI
 import UIKit
+import Combine
+import UserNotifications
+
+public enum TodaySubSection: String, CaseIterable, Identifiable, Sendable {
+    case headlines = "Hacker News"
+    case lumaEvents = "BLR Tech Events"
+    case arxivPaper = "Trending arXiv AI"
+
+    public var id: String { rawValue }
+    public var icon: String {
+        switch self {
+        case .headlines: return "flame.fill"
+        case .lumaEvents: return "mappin.and.ellipse"
+        case .arxivPaper: return "doc.text.magnifyingglass"
+        }
+    }
+}
 
 @MainActor
 public final class MainViewModel: ObservableObject {
@@ -13,10 +30,15 @@ public final class MainViewModel: ObservableObject {
     private let hnClient: HackerNewsClient
     private let geminiClient: GeminiClient
     private let xClient: XClient
+    private var cancellables = Set<AnyCancellable>()
+    private var autoRefreshTask: Task<Void, Never>?
 
     // Navigation & Theme
     @Published public var selectedTab: LiteDestination = .today
     @Published public var fontScale: Double
+
+    // Today — Sub-section Selector
+    @Published public var todaySubSection: TodaySubSection = .headlines
 
     // Today — Hacker News Top 10
     @Published public var headlines: [HeadlineItem] = []
@@ -29,6 +51,23 @@ public final class MainViewModel: ObservableObject {
     public var sortedHeadlines: [HeadlineItem] {
         headlineSort.apply(headlines)
     }
+
+    // Today — Bengaluru Lu.ma Tech & AI Events (2-3x daily refresh)
+    @Published public var lumaEvents: [LumaBengaluruEvent] = []
+    @Published public var isLoadingLumaEvents: Bool = false
+    @Published public var lumaEventsError: String?
+    @Published public var lumaEventsLastUpdated: String?
+    private var lastLumaFetchDate: Date?
+
+    // Today — Trending arXiv GenAI Paper (ELI5 / Simplified)
+    @Published public var dailyArxivPaper: ArxivGenAIPaper?
+    @Published public var isLoadingArxivPaper: Bool = false
+    @Published public var arxivPaperError: String?
+    @Published public var trendingArxivIndex: Int = 0
+    private var cachedRawArxivEntries: [GeminiClient.ArxivRawEntry] = []
+
+    // Hourly Lock Screen Feed
+    @Published public var lockScreenHourlyEnabled: Bool
 
     // Article -> X State
     @Published public var articleTextInput: String = ""
@@ -99,10 +138,40 @@ public final class MainViewModel: ObservableObject {
         self.attachImageToPost = prefs.attachImageToPost
         self.defaultSource = prefs.defaultSource
         self.archivedBriefs = archiveStore.loadAll()
+        self.lockScreenHourlyEnabled = prefs.lockScreenTopStoryEnabled
+
+        // Forward AudioSessionManager mutations to MainViewModel so SwiftUI observers immediately update
+        audioManager.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            .store(in: &cancellables)
+
+        // Load cached feeds or samples immediately
+        if let cachedEvents = try? JSONDecoder().decode([LumaBengaluruEvent].self, from: Data(prefs.lumaEventsCache.utf8)), !cachedEvents.isEmpty {
+            self.lumaEvents = cachedEvents
+            let ts = prefs.lumaEventsCacheTimestamp
+            if ts > 0 {
+                let f = DateFormatter()
+                f.dateFormat = "MMM d, h:mm a"
+                self.lumaEventsLastUpdated = f.string(from: Date(timeIntervalSince1970: TimeInterval(ts)))
+            }
+        } else {
+            self.lumaEvents = GeminiClient.sampleBengaluruEvents()
+        }
+
+        if let cachedPaper = try? JSONDecoder().decode(ArxivGenAIPaper.self, from: Data(prefs.arxivDailyPaperCache.utf8)) {
+            self.dailyArxivPaper = cachedPaper
+        } else {
+            self.dailyArxivPaper = GeminiClient.sampleArxivPaper()
+        }
 
         Task {
             await refreshHeadlines()
         }
+
+        startHeadlineAutoRefresh()
     }
 
     // MARK: - Today Feed Actions
@@ -120,6 +189,9 @@ public final class MainViewModel: ObservableObject {
         if Date().timeIntervalSince(last) >= Self.headlineStaleAfterSeconds {
             Task { await refreshHeadlines() }
         }
+        if let lastLuma = lastLumaFetchDate, Date().timeIntervalSince(lastLuma) >= 8 * 3600 {
+            Task { await fetchLumaBengaluruEvents() }
+        }
     }
 
     public func refreshHeadlines() async {
@@ -133,10 +205,149 @@ public final class MainViewModel: ObservableObject {
             let formatter = DateFormatter()
             formatter.dateFormat = "h:mm a"
             headlinesLastUpdated = formatter.string(from: Date())
+
+            if lockScreenHourlyEnabled, let top = sortedHeadlines.first {
+                postLockScreenNotification(for: top)
+            }
         } catch {
             headlinesError = error.localizedDescription
         }
         isLoadingHeadlines = false
+    }
+
+    public func startHeadlineAutoRefresh() {
+        autoRefreshTask?.cancel()
+        autoRefreshTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: UInt64(Self.headlineRefreshIntervalSeconds * 1_000_000_000))
+                guard !Task.isCancelled, let self = self else { break }
+                await self.refreshHeadlines()
+            }
+        }
+    }
+
+    public func setLockScreenHourlyEnabled(_ enabled: Bool) {
+        lockScreenHourlyEnabled = enabled
+        prefs.lockScreenTopStoryEnabled = enabled
+        if enabled {
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+                DispatchQueue.main.async {
+                    if !granted {
+                        self.lockScreenHourlyEnabled = false
+                        self.prefs.lockScreenTopStoryEnabled = false
+                    } else if let top = self.sortedHeadlines.first {
+                        self.postLockScreenNotification(for: top)
+                    }
+                }
+            }
+        }
+    }
+
+    public func postLockScreenNotification(for item: HeadlineItem) {
+        let content = UNMutableNotificationContent()
+        content.title = "🔥 YenGuru • #1 Signal on Hacker News"
+        let domainStr = item.domain.isEmpty ? "" : " • \(item.domain)"
+        content.subtitle = "\(item.points) pts\(domainStr)"
+        content.body = item.title
+        content.sound = .default
+        content.userInfo = ["url": item.openUrl, "title": item.title]
+
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+        let request = UNNotificationRequest(identifier: "yenguru_hn_top_story", content: content, trigger: trigger)
+        UNUserNotificationCenter.current().add(request)
+    }
+
+    // MARK: - Lu.ma Bengaluru Tech & AI Events (2-3x Daily)
+
+    public func fetchLumaBengaluruEvents(forceRefresh: Bool = false) async {
+        guard !isLoadingLumaEvents else { return }
+
+        // If not forcing refresh and feed was fetched within the last 8 hours, keep current
+        if !forceRefresh, !lumaEvents.isEmpty, let last = lastLumaFetchDate, Date().timeIntervalSince(last) < 8 * 3600 {
+            return
+        }
+
+        isLoadingLumaEvents = true
+        lumaEventsError = nil
+
+        do {
+            let fetched = try await geminiClient.fetchLumaBengaluruEvents(
+                apiKey: geminiApiKey,
+                modelName: geminiModel
+            )
+            lumaEvents = fetched
+            lastLumaFetchDate = Date()
+            let f = DateFormatter()
+            f.dateFormat = "MMM d, h:mm a"
+            lumaEventsLastUpdated = f.string(from: Date())
+
+            if let encoded = try? JSONEncoder().encode(fetched),
+               let str = String(data: encoded, encoding: .utf8) {
+                prefs.lumaEventsCache = str
+                prefs.lumaEventsCacheTimestamp = Int64(Date().timeIntervalSince1970)
+            }
+        } catch {
+            lumaEventsError = error.localizedDescription
+            if lumaEvents.isEmpty {
+                lumaEvents = GeminiClient.sampleBengaluruEvents()
+            }
+        }
+
+        isLoadingLumaEvents = false
+    }
+
+    // MARK: - Daily Trending arXiv GenAI Paper
+
+    public func loadDailyArxivPaper(forceRefresh: Bool = false) async {
+        guard !isLoadingArxivPaper else { return }
+
+        if !forceRefresh && dailyArxivPaper != nil {
+            return
+        }
+
+        isLoadingArxivPaper = true
+        arxivPaperError = nil
+
+        do {
+            if cachedRawArxivEntries.isEmpty || forceRefresh {
+                cachedRawArxivEntries = try await geminiClient.fetchTrendingArxivPapers(count: 6)
+            }
+
+            guard !cachedRawArxivEntries.isEmpty else {
+                dailyArxivPaper = GeminiClient.sampleArxivPaper()
+                isLoadingArxivPaper = false
+                return
+            }
+
+            let index = trendingArxivIndex % cachedRawArxivEntries.count
+            let chosen = cachedRawArxivEntries[index]
+
+            let simplified = try await geminiClient.simplifyArxivPaper(
+                apiKey: geminiApiKey,
+                modelName: geminiModel,
+                rawEntry: chosen
+            )
+
+            dailyArxivPaper = simplified
+
+            if let encoded = try? JSONEncoder().encode(simplified),
+               let str = String(data: encoded, encoding: .utf8) {
+                prefs.arxivDailyPaperCache = str
+                prefs.arxivDailyPaperTimestamp = Int64(Date().timeIntervalSince1970)
+            }
+        } catch {
+            arxivPaperError = error.localizedDescription
+            if dailyArxivPaper == nil {
+                dailyArxivPaper = GeminiClient.sampleArxivPaper()
+            }
+        }
+
+        isLoadingArxivPaper = false
+    }
+
+    public func loadNextArxivPaper() async {
+        trendingArxivIndex += 1
+        await loadDailyArxivPaper(forceRefresh: true)
     }
 
     public func draftPostFromHeadline(_ item: HeadlineItem) {

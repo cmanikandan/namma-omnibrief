@@ -15,31 +15,93 @@ public struct TodayHeadlinesView: View {
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                headerCard
-                sortBar
+                subSectionPillBar
 
-                if let error = viewModel.headlinesError {
-                    errorCard(error)
-                }
-
-                if viewModel.isLoadingHeadlines && viewModel.headlines.isEmpty {
-                    ForEach(0..<4, id: \.self) { _ in
-                        shimmerPlaceholder
-                    }
-                } else {
-                    ForEach(Array(viewModel.sortedHeadlines.enumerated()), id: \.element.id) { index, item in
-                        headlineCard(rank: index + 1, item: item)
-                    }
+                switch viewModel.todaySubSection {
+                case .headlines:
+                    headlinesSection
+                case .lumaEvents:
+                    lumaEventsSection
+                case .arxivPaper:
+                    arxivPaperSection
                 }
             }
             .padding(16)
         }
         .background(OmniTheme.paperBackground.ignoresSafeArea())
         .refreshable {
-            await viewModel.refreshHeadlines()
+            switch viewModel.todaySubSection {
+            case .headlines:
+                await viewModel.refreshHeadlines()
+            case .lumaEvents:
+                await viewModel.fetchLumaBengaluruEvents(forceRefresh: true)
+            case .arxivPaper:
+                await viewModel.loadDailyArxivPaper(forceRefresh: true)
+            }
         }
         .onReceive(ageTicker) { date in
             nowEpochSeconds = Int64(date.timeIntervalSince1970)
+        }
+        .onChange(of: viewModel.todaySubSection) { _, newSection in
+            Task {
+                if newSection == .lumaEvents && viewModel.lumaEvents.isEmpty {
+                    await viewModel.fetchLumaBengaluruEvents()
+                } else if newSection == .arxivPaper && viewModel.dailyArxivPaper == nil {
+                    await viewModel.loadDailyArxivPaper()
+                }
+            }
+        }
+    }
+
+    // MARK: - Sub-section Pill Bar
+
+    private var subSectionPillBar: some View {
+        HStack(spacing: 8) {
+            ForEach(TodaySubSection.allCases) { section in
+                let isSelected = (viewModel.todaySubSection == section)
+                Button {
+                    viewModel.todaySubSection = section
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: section.icon)
+                            .font(.system(size: 11, weight: .bold))
+                        Text(section.rawValue)
+                            .omniScaledFont(size: 12, weight: .bold, scale: viewModel.fontScale)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(isSelected ? OmniTheme.primaryTerracotta : OmniTheme.cardSurface)
+                    .foregroundColor(isSelected ? .white : OmniTheme.deepInk)
+                    .cornerRadius(20)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20)
+                            .stroke(isSelected ? OmniTheme.primaryTerracotta : OmniTheme.borderWarm, lineWidth: 1)
+                    )
+                }
+            }
+            Spacer()
+        }
+    }
+
+    // MARK: - 1. Hacker News Section
+
+    @ViewBuilder
+    private var headlinesSection: some View {
+        headerCard
+        sortBar
+
+        if let error = viewModel.headlinesError {
+            errorCard(error)
+        }
+
+        if viewModel.isLoadingHeadlines && viewModel.headlines.isEmpty {
+            ForEach(0..<4, id: \.self) { _ in
+                shimmerPlaceholder
+            }
+        } else {
+            ForEach(Array(viewModel.sortedHeadlines.enumerated()), id: \.element.id) { index, item in
+                headlineCard(rank: index + 1, item: item)
+            }
         }
     }
 
@@ -56,7 +118,7 @@ public struct TodayHeadlinesView: View {
                     .omniScaledFont(size: 12, weight: .regular, scale: viewModel.fontScale)
                     .foregroundColor(OmniTheme.mutedSlate)
                 if let updated = viewModel.headlinesLastUpdated {
-                    Text("Updated \(updated)")
+                    Text("Auto-refreshed hourly • Updated \(updated)")
                         .omniScaledFont(size: 11, weight: .medium, scale: viewModel.fontScale)
                         .foregroundColor(OmniTheme.mutedSlate)
                 }
@@ -185,6 +247,413 @@ public struct TodayHeadlinesView: View {
                 .stroke(OmniTheme.borderWarm, lineWidth: 1)
         )
     }
+
+    // MARK: - 2. Bengaluru Lu.ma Tech & AI Events Section
+
+    @ViewBuilder
+    private var lumaEventsSection: some View {
+        lumaHeaderCard
+
+        if let error = viewModel.lumaEventsError {
+            errorCard(error)
+        }
+
+        if viewModel.isLoadingLumaEvents && viewModel.lumaEvents.isEmpty {
+            ForEach(0..<3, id: \.self) { _ in
+                shimmerPlaceholder
+            }
+        } else {
+            ForEach(viewModel.lumaEvents) { event in
+                lumaEventCard(event)
+            }
+        }
+    }
+
+    private var lumaHeaderCard: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("BENGALURU TECH & AI • LU.MA")
+                    .omniScaledFont(size: 11, weight: .bold, scale: viewModel.fontScale)
+                    .foregroundColor(OmniTheme.primaryTerracotta)
+                Text("Upcoming Tech Meetups")
+                    .omniScaledFont(size: 20, weight: .bold, scale: viewModel.fontScale)
+                    .foregroundColor(OmniTheme.deepInk)
+                Text("Curated AI demo nights, agent hackathons & founder summits in Bengaluru.")
+                    .omniScaledFont(size: 12, weight: .regular, scale: viewModel.fontScale)
+                    .foregroundColor(OmniTheme.mutedSlate)
+                if let updated = viewModel.lumaEventsLastUpdated {
+                    Text("Refreshed 2-3x daily • Updated \(updated)")
+                        .omniScaledFont(size: 11, weight: .medium, scale: viewModel.fontScale)
+                        .foregroundColor(OmniTheme.mutedSlate)
+                }
+            }
+            Spacer()
+            Button {
+                Task { await viewModel.fetchLumaBengaluruEvents(forceRefresh: true) }
+            } label: {
+                if viewModel.isLoadingLumaEvents {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: OmniTheme.primaryTerracotta))
+                        .padding(10)
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(OmniTheme.primaryTerracotta)
+                        .padding(10)
+                        .background(OmniTheme.subtleSurface)
+                        .clipShape(Circle())
+                }
+            }
+            .disabled(viewModel.isLoadingLumaEvents)
+        }
+        .padding(16)
+        .background(OmniTheme.cardSurface)
+        .cornerRadius(14)
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(OmniTheme.borderWarm, lineWidth: 1)
+        )
+    }
+
+    private func lumaEventCard(_ event: LumaBengaluruEvent) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                HStack(spacing: 4) {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 10))
+                    Text(event.date)
+                        .omniScaledFont(size: 11, weight: .bold, scale: viewModel.fontScale)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(OmniTheme.primaryTerracotta)
+                .foregroundColor(.white)
+                .cornerRadius(6)
+
+                Text(event.category)
+                    .omniScaledFont(size: 11, weight: .semibold, scale: viewModel.fontScale)
+                    .foregroundColor(OmniTheme.deepInk)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(OmniTheme.subtleSurface)
+                    .cornerRadius(6)
+
+                Spacer()
+
+                if !event.time.isEmpty {
+                    Text(event.time)
+                        .omniScaledFont(size: 11, weight: .medium, scale: viewModel.fontScale)
+                        .foregroundColor(OmniTheme.mutedSlate)
+                }
+            }
+
+            Text(event.title)
+                .omniScaledFont(size: 16, weight: .bold, scale: viewModel.fontScale)
+                .foregroundColor(OmniTheme.deepInk)
+
+            HStack(spacing: 5) {
+                Image(systemName: "mappin.circle.fill")
+                    .foregroundColor(OmniTheme.forestGreen)
+                    .font(.system(size: 12))
+                Text(event.venue)
+                    .omniScaledFont(size: 12, weight: .semibold, scale: viewModel.fontScale)
+                    .foregroundColor(OmniTheme.deepInk)
+
+                if !event.organizer.isEmpty {
+                    Text("•  \(event.organizer)")
+                        .omniScaledFont(size: 12, weight: .regular, scale: viewModel.fontScale)
+                        .foregroundColor(OmniTheme.mutedSlate)
+                        .lineLimit(1)
+                }
+            }
+
+            if !event.description.isEmpty {
+                Text(event.description)
+                    .omniScaledFont(size: 13, weight: .regular, scale: viewModel.fontScale)
+                    .foregroundColor(OmniTheme.deepInk.opacity(0.85))
+            }
+
+            HStack {
+                Spacer()
+                Button {
+                    if let url = URL(string: event.url) {
+                        openURL(url)
+                    }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "arrow.up.right.square")
+                        Text("Register on Lu.ma")
+                    }
+                    .omniScaledFont(size: 12, weight: .bold, scale: viewModel.fontScale)
+                    .foregroundColor(OmniTheme.primaryTerracotta)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(OmniTheme.subtleSurface)
+                    .cornerRadius(8)
+                }
+            }
+        }
+        .padding(14)
+        .background(OmniTheme.cardSurface)
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(OmniTheme.borderWarm, lineWidth: 1)
+        )
+    }
+
+    // MARK: - 3. Daily Trending arXiv GenAI Paper Section
+
+    @ViewBuilder
+    private var arxivPaperSection: some View {
+        arxivHeaderCard
+
+        if let error = viewModel.arxivPaperError {
+            errorCard(error)
+        }
+
+        if viewModel.isLoadingArxivPaper && viewModel.dailyArxivPaper == nil {
+            shimmerPlaceholder
+        } else if let paper = viewModel.dailyArxivPaper {
+            arxivPaperDetailCard(paper)
+        }
+    }
+
+    private var arxivHeaderCard: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("DAILY TRENDING ARXIV GENAI")
+                    .omniScaledFont(size: 11, weight: .bold, scale: viewModel.fontScale)
+                    .foregroundColor(OmniTheme.primaryTerracotta)
+                Text("AI Paper Simplified")
+                    .omniScaledFont(size: 20, weight: .bold, scale: viewModel.fontScale)
+                    .foregroundColor(OmniTheme.deepInk)
+                Text("Cutting-edge ML breakthroughs explained for tech leaders — zero dense math.")
+                    .omniScaledFont(size: 12, weight: .regular, scale: viewModel.fontScale)
+                    .foregroundColor(OmniTheme.mutedSlate)
+            }
+            Spacer()
+            HStack(spacing: 6) {
+                Button {
+                    Task { await viewModel.loadNextArxivPaper() }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "forward.fill")
+                            .font(.system(size: 11))
+                        Text("Next")
+                            .omniScaledFont(size: 11, weight: .bold, scale: viewModel.fontScale)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(OmniTheme.subtleSurface)
+                    .foregroundColor(OmniTheme.primaryTerracotta)
+                    .cornerRadius(8)
+                }
+                .disabled(viewModel.isLoadingArxivPaper)
+
+                Button {
+                    Task { await viewModel.loadDailyArxivPaper(forceRefresh: true) }
+                } label: {
+                    if viewModel.isLoadingArxivPaper {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: OmniTheme.primaryTerracotta))
+                            .padding(8)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(OmniTheme.primaryTerracotta)
+                            .padding(10)
+                            .background(OmniTheme.subtleSurface)
+                            .clipShape(Circle())
+                    }
+                }
+                .disabled(viewModel.isLoadingArxivPaper)
+            }
+        }
+        .padding(16)
+        .background(OmniTheme.cardSurface)
+        .cornerRadius(14)
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(OmniTheme.borderWarm, lineWidth: 1)
+        )
+    }
+
+    private func arxivPaperDetailCard(_ paper: ArxivGenAIPaper) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            // Badges
+            HStack(spacing: 6) {
+                Text("cs.AI • GenAI")
+                    .omniScaledFont(size: 11, weight: .bold, scale: viewModel.fontScale)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(OmniTheme.primaryTerracotta)
+                    .foregroundColor(.white)
+                    .cornerRadius(6)
+
+                if !paper.publishedDate.isEmpty {
+                    Text(paper.publishedDate)
+                        .omniScaledFont(size: 11, weight: .medium, scale: viewModel.fontScale)
+                        .foregroundColor(OmniTheme.mutedSlate)
+                }
+
+                Spacer()
+
+                Button {
+                    if let url = URL(string: paper.pdfUrl) {
+                        openURL(url)
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "doc.fill")
+                        Text("PDF")
+                    }
+                    .omniScaledFont(size: 11, weight: .bold, scale: viewModel.fontScale)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(OmniTheme.subtleSurface)
+                    .foregroundColor(OmniTheme.primaryTerracotta)
+                    .cornerRadius(6)
+                }
+            }
+
+            // Title
+            Text(paper.title)
+                .omniScaledFont(size: 18, weight: .bold, scale: viewModel.fontScale)
+                .foregroundColor(OmniTheme.deepInk)
+
+            if !paper.authors.isEmpty {
+                Text(paper.authors.joined(separator: ", "))
+                    .omniScaledFont(size: 12, weight: .medium, scale: viewModel.fontScale)
+                    .foregroundColor(OmniTheme.mutedSlate)
+            }
+
+            Divider()
+
+            // 1. Plain English Analogy
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    Image(systemName: "lightbulb.fill")
+                        .foregroundColor(OmniTheme.mysoreGold)
+                    Text("PLAIN-ENGLISH CORE CONCEPT")
+                        .omniScaledFont(size: 11, weight: .bold, scale: viewModel.fontScale)
+                        .foregroundColor(OmniTheme.primaryTerracotta)
+                }
+                Text(paper.plainEnglishSummary)
+                    .omniScaledFont(size: 13, weight: .regular, scale: viewModel.fontScale)
+                    .foregroundColor(OmniTheme.deepInk)
+                    .lineSpacing(3)
+            }
+            .padding(12)
+            .background(OmniTheme.subtleSurface)
+            .cornerRadius(10)
+
+            // 2. The Core Problem
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .foregroundColor(OmniTheme.errorCrimson)
+                    Text("THE BOTTLENECK IT SOLVES")
+                        .omniScaledFont(size: 11, weight: .bold, scale: viewModel.fontScale)
+                        .foregroundColor(OmniTheme.deepInk)
+                }
+                Text(paper.coreProblem)
+                    .omniScaledFont(size: 13, weight: .regular, scale: viewModel.fontScale)
+                    .foregroundColor(OmniTheme.deepInk.opacity(0.85))
+            }
+
+            // 3. The Breakthrough
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Image(systemName: "sparkles")
+                        .foregroundColor(OmniTheme.primaryTerracotta)
+                    Text("THE NOVEL BREAKTHROUGH")
+                        .omniScaledFont(size: 11, weight: .bold, scale: viewModel.fontScale)
+                        .foregroundColor(OmniTheme.deepInk)
+                }
+                Text(paper.coreBreakthrough)
+                    .omniScaledFont(size: 13, weight: .regular, scale: viewModel.fontScale)
+                    .foregroundColor(OmniTheme.deepInk.opacity(0.85))
+            }
+
+            // 4. Engineering Implication
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Image(systemName: "wrench.and.screwdriver.fill")
+                        .foregroundColor(OmniTheme.forestGreen)
+                    Text("REAL-WORLD ENGINEERING IMPLICATION")
+                        .omniScaledFont(size: 11, weight: .bold, scale: viewModel.fontScale)
+                        .foregroundColor(OmniTheme.deepInk)
+                }
+                Text(paper.engineeringImplication)
+                    .omniScaledFont(size: 13, weight: .regular, scale: viewModel.fontScale)
+                    .foregroundColor(OmniTheme.deepInk.opacity(0.85))
+            }
+
+            // 5. 2-Minute CTO Takeaway
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Image(systemName: "timer")
+                        .foregroundColor(OmniTheme.primaryTerracotta)
+                    Text("THE 2-MINUTE CTO TAKEAWAY")
+                        .omniScaledFont(size: 11, weight: .bold, scale: viewModel.fontScale)
+                        .foregroundColor(OmniTheme.deepInk)
+                }
+                Text(paper.twoMinuteTakeaway)
+                    .omniScaledFont(size: 13, weight: .bold, scale: viewModel.fontScale)
+                    .foregroundColor(OmniTheme.deepInk)
+            }
+            .padding(12)
+            .background(OmniTheme.forestGreen.opacity(0.08))
+            .cornerRadius(10)
+
+            // Action Buttons
+            HStack(spacing: 10) {
+                Button {
+                    if let url = URL(string: paper.arxivUrl) {
+                        openURL(url)
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.up.right.square")
+                        Text("arXiv Abstract")
+                    }
+                    .omniScaledFont(size: 12, weight: .bold, scale: viewModel.fontScale)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(OmniTheme.subtleSurface)
+                    .foregroundColor(OmniTheme.deepInk)
+                    .cornerRadius(8)
+                }
+
+                Button {
+                    if let url = URL(string: paper.pdfUrl) {
+                        openURL(url)
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "doc.text.fill")
+                        Text("Open Full PDF")
+                    }
+                    .omniScaledFont(size: 12, weight: .bold, scale: viewModel.fontScale)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(OmniTheme.primaryTerracotta)
+                    .foregroundColor(.white)
+                    .cornerRadius(8)
+                }
+            }
+        }
+        .padding(16)
+        .background(OmniTheme.cardSurface)
+        .cornerRadius(14)
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(OmniTheme.borderWarm, lineWidth: 1)
+        )
+    }
+
+    // MARK: - Helpers
 
     private var shimmerPlaceholder: some View {
         VStack(alignment: .leading, spacing: 10) {
