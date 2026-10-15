@@ -429,7 +429,9 @@ public final class GeminiClient: Sendable {
         }
 
         let prompt = """
-        Search Google for upcoming tech and AI events, developer meetups, founder mixers, and demo days in Bengaluru (Bangalore), especially events listed on lu.ma (Luma Bengaluru) or happening in tech hubs like Koramangala, Indiranagar, HSR Layout, Bellandur.
+        Search Google for upcoming events in Bengaluru (Bangalore) on lu.ma (Luma Bengaluru, lu.ma/bangalore) across the next 30 days.
+        Do NOT filter by topic—include all public events across tech, AI, developer meetups, founder mixers, product & design gatherings, startup pitch nights, hardware demos, creative workshops, book clubs, cultural sessions, and community socials across Bengaluru (Koramangala, Indiranagar, HSR Layout, Bellandur, Whitefield, MG Road, Church Street, etc.).
+        Return 10 to 15 events happening across the next 30 days.
         Return ONLY valid JSON matching this schema:
         [
           {
@@ -437,10 +439,10 @@ public final class GeminiClient: Sendable {
             "date": "e.g. Saturday, Oct 24, 2026",
             "time": "e.g. 10:00 AM - 1:00 PM IST",
             "venue": "e.g. Indiranagar, Bengaluru",
-            "organizer": "e.g. Bengaluru AI Community",
-            "category": "GenAI / LLMs / Robotics / Startups",
+            "organizer": "e.g. Bengaluru Community",
+            "category": "Tech / Founder / Design / Social / AI / Creative",
             "url": "https://lu.ma/... or relevant URL",
-            "description": "1-2 sentence crisp overview of what attendees will learn or see."
+            "description": "1-2 sentence crisp overview of what attendees will experience or learn."
           }
         ]
         No markdown wrapping, just raw JSON array.
@@ -521,8 +523,38 @@ public final class GeminiClient: Sendable {
                 venue: "South Park Commons, Koramangala",
                 organizer: "South Park Commons & Elevation Capital",
                 category: "Physical AI / Robotics",
-                url: "https://lu.ma/bengaluru",
+                url: "https://lu.ma/bangalore",
                 description: "Live demos of humanoid policies, edge inference chips, and robotic perception architectures built by Bengaluru founders."
+            ),
+            LumaBengaluruEvent(
+                title: "Bengaluru Founders & Angel Investor Mixer",
+                date: "Friday, Oct 30, 2026",
+                time: "6:30 PM - 9:30 PM IST",
+                venue: "WeWork Galaxy, Residency Road",
+                organizer: "Bengaluru Startup Network",
+                category: "Startups & Capital",
+                url: "https://lu.ma/bangalore",
+                description: "Informal networking for seed & Series A founders with prominent angel networks and early-stage operators."
+            ),
+            LumaBengaluruEvent(
+                title: "Bangalore Weekend Book & Philosophy Salon",
+                date: "Sunday, Nov 1, 2026",
+                time: "11:00 AM - 1:00 PM IST",
+                venue: "Atta Galatta, Indiranagar",
+                organizer: "Bangalore Literary Society",
+                category: "Books & Culture",
+                url: "https://lu.ma/bangalore",
+                description: "Deep-dive discussion on technology, society, and modern philosophy over South Indian filter coffee."
+            ),
+            LumaBengaluruEvent(
+                title: "Product Design & Design Systems Chapter",
+                date: "Wednesday, Nov 4, 2026",
+                time: "6:00 PM - 8:30 PM IST",
+                venue: "Drip Capital Office, Indiranagar",
+                organizer: "Figma Community Bengaluru",
+                category: "Design & UX",
+                url: "https://lu.ma/bangalore",
+                description: "Tactical sessions on AI-assisted UI prototyping, motion design in mobile apps, and scalable multi-brand design systems."
             ),
             LumaBengaluruEvent(
                 title: "Bengaluru GenAI Builders & Agents Summit",
@@ -531,8 +563,18 @@ public final class GeminiClient: Sendable {
                 venue: "Indiranagar Club, Indiranagar",
                 organizer: "Bengaluru AI Collective",
                 category: "Agents & LLMs",
-                url: "https://lu.ma/bengaluru",
+                url: "https://lu.ma/bangalore",
                 description: "Deep dive into production multi-agent workflows, DSPy pipeline compilations, and enterprise RAG evaluation at scale."
+            ),
+            LumaBengaluruEvent(
+                title: "Indie Hackers & Bootstrapped SaaS Breakfast",
+                date: "Tuesday, Nov 10, 2026",
+                time: "8:30 AM - 10:30 AM IST",
+                venue: "Third Wave Coffee, HSR Layout Sector 4",
+                organizer: "Indie Hackers BLR",
+                category: "Indie SaaS",
+                url: "https://lu.ma/bangalore",
+                description: "Casual morning meetup for solo founders building micro-SaaS, sharing distribution playbooks and revenue milestones."
             ),
             LumaBengaluruEvent(
                 title: "Karnataka Sovereign AI & Indic Compute Forum",
@@ -541,8 +583,28 @@ public final class GeminiClient: Sendable {
                 venue: "IISc & Palace Grounds, Bengaluru",
                 organizer: "KITS & Karnataka Innovation Council",
                 category: "Policy & Compute",
-                url: "https://lu.ma/bengaluru",
+                url: "https://lu.ma/bangalore",
                 description: "State initiatives for localized Kannada/Indic LLMs, GPU cluster subsidies, and academic-industry research grants."
+            ),
+            LumaBengaluruEvent(
+                title: "Hardware Hackers, Embedded IoT & Drone Showcase",
+                date: "Saturday, Nov 14, 2026",
+                time: "11:00 AM - 4:00 PM IST",
+                venue: "Workbench Projects, Halasuru Metro",
+                organizer: "Bengaluru Hardware Collective",
+                category: "Hardware & IoT",
+                url: "https://lu.ma/bangalore",
+                description: "Hands-on demos of custom PCB layouts, embedded ESP32/RISC-V controllers, and autonomous drone flight controllers."
+            ),
+            LumaBengaluruEvent(
+                title: "Women in Tech & Engineering Leadership Meetup",
+                date: "Tuesday, Nov 17, 2026",
+                time: "6:00 PM - 8:30 PM IST",
+                venue: "Google Signature Tower, Outer Ring Road",
+                organizer: "Women Who Code & Lead Bengaluru",
+                category: "Leadership & Diversity",
+                url: "https://lu.ma/bangalore",
+                description: "Panel on scaling engineering teams, transitioning to VP/CTO roles, and navigating high-growth tech ventures."
             ),
             LumaBengaluruEvent(
                 title: "Rust Systems & High-Throughput ML Serving Mixer",
@@ -551,8 +613,28 @@ public final class GeminiClient: Sendable {
                 venue: "HSR Layout Sector 4, Bengaluru",
                 organizer: "Bangalore Rust & Systems Club",
                 category: "Systems & Infra",
-                url: "https://lu.ma/bengaluru",
+                url: "https://lu.ma/bangalore",
                 description: "Architecting microsecond-latency tensor servers, vLLM optimizations, and on-device quantization pipelines."
+            ),
+            LumaBengaluruEvent(
+                title: "ClimateTech & Clean Energy Innovations Roundtable",
+                date: "Tuesday, Nov 24, 2026",
+                time: "4:00 PM - 7:00 PM IST",
+                venue: "Bangalore International Centre (BIC), Domlur",
+                organizer: "ClimateRise India",
+                category: "Climate & Cleantech",
+                url: "https://lu.ma/bangalore",
+                description: "Discussions with founders scaling EV battery storage solutions, grid optimization AI, and carbon accounting software."
+            ),
+            LumaBengaluruEvent(
+                title: "Creative Coding, Modular Audio & Generative Art Jam",
+                date: "Friday, Nov 27, 2026",
+                time: "7:00 PM - 10:00 PM IST",
+                venue: "The Jam Parlour, Koramangala 5th Block",
+                organizer: "Creative Code BLR",
+                category: "Art & Creative Tech",
+                url: "https://lu.ma/bangalore",
+                description: "Live shader coding, modular analog synthesizer patching, and interactive generative visuals by local artists."
             )
         ]
     }

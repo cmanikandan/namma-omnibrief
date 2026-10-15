@@ -248,7 +248,7 @@ public struct TodayHeadlinesView: View {
         )
     }
 
-    // MARK: - 2. Bengaluru Lu.ma Tech & AI Events Section
+    // MARK: - 2. Bengaluru Lu.ma Events (Next 30 Days) Section
 
     @ViewBuilder
     private var lumaEventsSection: some View {
@@ -266,19 +266,38 @@ public struct TodayHeadlinesView: View {
             ForEach(viewModel.lumaEvents) { event in
                 lumaEventCard(event)
             }
+
+            Button {
+                if let url = URL(string: "https://lu.ma/bangalore") {
+                    openURL(url)
+                }
+            } label: {
+                HStack {
+                    Image(systemName: "safari")
+                    Text("Explore All Upcoming Bengaluru Events on Lu.ma ↗")
+                    Spacer()
+                    Image(systemName: "arrow.up.right")
+                }
+                .omniScaledFont(size: 13, weight: .semibold, scale: viewModel.fontScale)
+                .foregroundColor(OmniTheme.primaryTerracotta)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(OmniTheme.subtleSurface)
+                .cornerRadius(10)
+            }
         }
     }
 
     private var lumaHeaderCard: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("BENGALURU TECH & AI • LU.MA")
+                Text("BENGALURU • NEXT 30 DAYS ON LU.MA")
                     .omniScaledFont(size: 11, weight: .bold, scale: viewModel.fontScale)
                     .foregroundColor(OmniTheme.primaryTerracotta)
-                Text("Upcoming Tech Meetups")
+                Text("Bengaluru Events & Meetups")
                     .omniScaledFont(size: 20, weight: .bold, scale: viewModel.fontScale)
                     .foregroundColor(OmniTheme.deepInk)
-                Text("Curated AI demo nights, agent hackathons & founder summits in Bengaluru.")
+                Text("All upcoming events across Bengaluru on Lu.ma — tech, AI, founders, design, socials & community gatherings.")
                     .omniScaledFont(size: 12, weight: .regular, scale: viewModel.fontScale)
                     .foregroundColor(OmniTheme.mutedSlate)
                 if let updated = viewModel.lumaEventsLastUpdated {
@@ -288,23 +307,41 @@ public struct TodayHeadlinesView: View {
                 }
             }
             Spacer()
-            Button {
-                Task { await viewModel.fetchLumaBengaluruEvents(forceRefresh: true) }
-            } label: {
-                if viewModel.isLoadingLumaEvents {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: OmniTheme.primaryTerracotta))
-                        .padding(10)
-                } else {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(OmniTheme.primaryTerracotta)
-                        .padding(10)
-                        .background(OmniTheme.subtleSurface)
-                        .clipShape(Circle())
+            VStack(alignment: .trailing, spacing: 8) {
+                Button {
+                    Task { await viewModel.fetchLumaBengaluruEvents(forceRefresh: true) }
+                } label: {
+                    if viewModel.isLoadingLumaEvents {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: OmniTheme.primaryTerracotta))
+                            .padding(10)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(OmniTheme.primaryTerracotta)
+                            .padding(10)
+                            .background(OmniTheme.subtleSurface)
+                            .clipShape(Circle())
+                    }
+                }
+                .disabled(viewModel.isLoadingLumaEvents)
+
+                Button {
+                    if let url = URL(string: "https://lu.ma/bangalore") {
+                        openURL(url)
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text("Explore ↗")
+                            .omniScaledFont(size: 11, weight: .bold, scale: viewModel.fontScale)
+                    }
+                    .foregroundColor(OmniTheme.primaryTerracotta)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(OmniTheme.subtleSurface)
+                    .cornerRadius(6)
                 }
             }
-            .disabled(viewModel.isLoadingLumaEvents)
         }
         .padding(16)
         .background(OmniTheme.cardSurface)

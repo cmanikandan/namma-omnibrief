@@ -256,13 +256,14 @@ struct OmniBriefJITTestMain {
         let sampleLumaText = "Here are events:\n[{\"title\":\"AI Demo\",\"date\":\"Tomorrow\",\"venue\":\"Koramangala\",\"organizer\":\"Luma\",\"category\":\"AI\",\"url\":\"https://lu.ma/blr\",\"description\":\"Demos\"}]\nThanks!"
         let extractedArray = GeminiClient.extractJsonArraySubstring(from: sampleLumaText)
         runner.check(
-            events.count >= 4
+            events.count >= 10
                 && events.contains { $0.venue.contains("Koramangala") }
                 && events.contains { $0.title.contains("Robotics") }
+                && events.contains { $0.category.contains("Design") || $0.category.contains("Culture") || $0.category.contains("Startups") }
                 && extractedArray != nil
                 && extractedArray!.starts(with: "[")
                 && extractedArray!.hasSuffix("]"),
-            "17. Luma Bengaluru Events models, sample feeds, and JSON array extraction verified"
+            "17. Luma Bengaluru Events models, expanded 30-day calendar (10+ events), and JSON array extraction verified"
         )
 
         // 10. arXiv GenAI Paper Model & Conceptual Explainer Invariants
